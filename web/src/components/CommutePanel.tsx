@@ -1,14 +1,21 @@
 import type { CommuteOption, CommuteResponse, LngLat } from "../../../shared/types";
+import { AddressInput } from "./AddressInput";
 import { minutes, weekdayLong, weekdayShort } from "../format";
 import { DepartureBars } from "./DepartureBars";
 
 export type PointKind = "home" | "work";
 
+export interface SavedPoint {
+  pos: LngLat;
+  label: string;
+}
+
 interface Props {
-  home: LngLat | null;
-  work: LngLat | null;
+  home: SavedPoint | null;
+  work: SavedPoint | null;
   picking: PointKind | null;
   onPick: (kind: PointKind | null) => void;
+  onSelect: (kind: PointKind, pos: LngLat, label: string) => void;
   onClear: () => void;
   dow: number;
   onDow: (dow: number) => void;
@@ -77,29 +84,22 @@ export function CommutePanel(p: Props) {
             </button>
           )}
         </div>
-        <div className="points">
-          {(["home", "work"] as const).map((kind) => {
-            const set = kind === "home" ? p.home : p.work;
-            const active = p.picking === kind;
-            return (
-              <button
-                key={kind}
-                className={`point-btn ${kind} ${active ? "active" : ""} ${set ? "set" : ""}`}
-                onClick={() => p.onPick(active ? null : kind)}
-                aria-pressed={active}
-              >
-                <span className="pin">{kind === "home" ? "D" : "P"}</span>
-                <span>
-                  <b>{kind === "home" ? "Dom" : "Praca"}</b>
-                  <small>{active ? "Kliknij na mapie…" : set ? "Ustawiono · zmień" : "Zaznacz na mapie"}</small>
-                </span>
-              </button>
-            );
-          })}
+        <div className="addresses">
+          {(["home", "work"] as const).map((kind) => (
+            <AddressInput
+              key={kind}
+              kind={kind}
+              label={kind === "home" ? "Dom" : "Praca"}
+              value={p[kind]?.label ?? null}
+              picking={p.picking === kind}
+              onPickOnMap={() => p.onPick(p.picking === kind ? null : kind)}
+              onSelect={(pos, label) => p.onSelect(kind, pos, label)}
+            />
+          ))}
         </div>
         <p className="muted small">
-          Punkty możesz też przeciągać. Zaokrąglamy je do ok. 100 m i nie zapisujemy ich jawnie. Zostają tylko w Twojej
-          przeglądarce.
+          Wpisz adres albo wskaż punkt na mapie (pinezki można przeciągać). Do obliczeń zaokrąglamy je do ok. 100 m i nie
+          zapisujemy ich jawnie. Zostają tylko w Twojej przeglądarce.
         </p>
       </section>
 

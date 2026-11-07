@@ -1,9 +1,9 @@
-import { ConditionalCheckFailedException, DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { createHash } from "node:crypto";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { haversine } from "../../shared/geo";
-import { localParts, nextDateForDow, slotRange, zonedToUtc } from "../../shared/time";
+import { nextDateForDow, slotRange, zonedToUtc } from "../../shared/time";
 import type { CityDef, CommuteOption, CommuteResponse, LngLat } from "../../shared/types";
+import { ApiError, consumeQuota, hash } from "./quota";
 import { calculateRoute, pool, type RouteResult } from "./routing";
 
 const TABLE = process.env.TABLE_NAME!;
@@ -15,59 +15,21 @@ export const WINDOWS = {
   toHome: slotRange("14:00", "20:00", 30),
   night: "03:00",
 };
-const MAX_RADIUS_M = 60_000;
+export const MAX_RADIUS_M = 60_000;
 const MIN_DISTANCE_M = 500;
 const CACHE_DAYS = 7;
-const DAILY_LIMIT = Number(process.env.COMMUTE_DAILY_LIMIT ?? 150);
-const PER_IP_LIMIT = Number(process.env.COMMUTE_PER_IP_LIMIT ?? 12);
-const SALT = process.env.HASH_SALT ?? "traffic-watch";
-
-export class CommuteError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-const hash = (s: string) => createHash("sha256").update(`${SALT}:${s}`).digest("hex").slice(0, 32);
+const QUOTA = {
+  name: "commute",
+  global: Number(process.env.COMMUTE_DAILY_LIMIT ?? 150),
+  perIp: Number(process.env.COMMUTE_PER_IP_LIMIT ?? 12),
+};
 
 export function validate(city: CityDef, home: LngLat, work: LngLat) {
   if (haversine(city.center, home) > MAX_RADIUS_M || haversine(city.center, work) > MAX_RADIUS_M) {
-    throw new CommuteError(400, `Oba punkty muszą leżeć w promieniu ${MAX_RADIUS_M / 1000} km od centrum.`);
+    throw new ApiError(400, `Oba punkty muszą leżeć w promieniu ${MAX_RADIUS_M / 1000} km od centrum.`);
   }
   if (haversine(home, work) < MIN_DISTANCE_M) {
-    throw new CommuteError(400, "Dom i praca są zbyt blisko siebie.");
-  }
-}
-
-/** Counts one uncached lookup against the per-IP and global daily quotas. */
-async function consumeQuota(city: CityDef, ip: string) {
-  const date = localParts(new Date(), city.timezone).date;
-  const ttl = Math.floor(Date.now() / 1000) + 2 * 86400;
-  const bump = (sk: string, max: number) =>
-    ddb.send(
-      new UpdateCommand({
-        TableName: TABLE,
-        Key: { pk: `QUOTA#${date}`, sk },
-        UpdateExpression: "ADD n :one SET #ttl = :ttl",
-        ConditionExpression: "attribute_not_exists(n) OR n < :max",
-        ExpressionAttributeNames: { "#ttl": "ttl" },
-        ExpressionAttributeValues: { ":one": 1, ":max": max, ":ttl": ttl },
-      }),
-    );
-  try {
-    await bump(`IP#${hash(ip)}`, PER_IP_LIMIT);
-  } catch (e) {
-    if (e instanceof ConditionalCheckFailedException) throw new CommuteError(429, "Dzienny limit wyszukiwań dla Ciebie został wyczerpany. Wróć jutro.");
-    throw e;
-  }
-  try {
-    await bump("ALL", DAILY_LIMIT);
-  } catch (e) {
-    if (e instanceof ConditionalCheckFailedException) throw new CommuteError(429, "Dzienny limit wyszukiwań został wyczerpany. Wróć jutro.");
-    throw e;
+    throw new ApiError(400, "Dom i praca są zbyt blisko siebie.");
   }
 }
 
@@ -112,7 +74,7 @@ export async function computeCommute(city: CityDef, home: LngLat, work: LngLat, 
     if (!job.night && (!cur || r.value.duration < cur.duration)) bestGeometry[job.dir] = r.value;
   });
 
-  if (!out.toWork.length || !out.toHome.length) throw new CommuteError(502, "Nie udało się wyznaczyć trasy. Spróbuj przesunąć punkty bliżej drogi.");
+  if (!out.toWork.length || !out.toHome.length) throw new ApiError(502, "Nie udało się wyznaczyć trasy. Spróbuj przesunąć punkty bliżej drogi.");
   // Fall back to the fastest daytime option if the night calculation failed.
   for (const dir of ["toWork", "toHome"] as const) {
     if (!out.night[dir].duration) out.night[dir] = { ...pickBest(out[dir])!, depart: WINDOWS.night };
@@ -128,7 +90,7 @@ export async function getCommute(city: CityDef, home: LngLat, work: LngLat, dow:
   const cached = await ddb.send(new GetCommand({ TableName: TABLE, Key: key }));
   if (cached.Item && Number(cached.Item.ttl) > Date.now() / 1000) return JSON.parse(String(cached.Item.data)) as CommuteResponse;
 
-  await consumeQuota(city, ip);
+  await consumeQuota(QUOTA, ip, city.timezone);
   const res = await computeCommute(city, home, work, dow);
   await ddb.send(
     new PutCommand({

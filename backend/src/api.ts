@@ -15,7 +15,9 @@ import type {
   ProfileSlot,
   Snapshot,
 } from "../../shared/types";
-import { CommuteError, getCommute } from "./commute";
+import { getCommute } from "./commute";
+import { ApiError } from "./quota";
+import { getPlace, suggestPlaces } from "./places";
 import { keys } from "./keys";
 
 const TABLE = process.env.TABLE_NAME!;
@@ -120,6 +122,18 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
       return json(200, list, 3600);
     }
 
+    if (path === "/api/places/suggest") {
+      const city = findCity(q.city ?? "warszawa");
+      if (!city) return json(404, { message: "Not found" });
+      return json(200, await suggestPlaces(city, q.q ?? "", viewerIp(event))); // SingleUse: never cached
+    }
+
+    if (path === "/api/places/detail") {
+      const city = findCity(q.city ?? "warszawa");
+      if (!city || !q.id) return json(400, { message: "id is required" });
+      return json(200, await getPlace(city, q.id, viewerIp(event)), 7 * 86400);
+    }
+
     if (path === "/api/commute") {
       const city = findCity(q.city ?? "warszawa");
       const home = parseLngLat(q.home);
@@ -151,7 +165,7 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
     }
     return json(404, { message: "Not found" });
   } catch (e) {
-    if (e instanceof CommuteError) return json(e.status, { message: e.message });
+    if (e instanceof ApiError) return json(e.status, { message: e.message });
     console.error(e);
     return json(500, { message: "Internal error" });
   }

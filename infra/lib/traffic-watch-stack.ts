@@ -124,6 +124,12 @@ export class TrafficWatchStack extends Stack {
     });
     table.grantReadWriteData(api); // commute cache + quotas
     api.addToRolePolicy(routing);
+    api.addToRolePolicy(
+      new PolicyStatement({
+        actions: ["geo-places:Suggest", "geo-places:GetPlace"],
+        resources: [`arn:aws:geo-places:${this.region}::provider/default`],
+      }),
+    );
     const apiUrl = api.addFunctionUrl({ authType: FunctionUrlAuthType.AWS_IAM });
 
     const site = new Bucket(this, "Site", {

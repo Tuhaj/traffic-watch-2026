@@ -12,7 +12,7 @@ import type {
   Snapshot,
 } from "../../shared/types";
 import { api } from "./api";
-import { CommutePanel, type PointKind } from "./components/CommutePanel";
+import { CommutePanel, type PointKind, type SavedPoint } from "./components/CommutePanel";
 import { MapView } from "./components/MapView";
 import { type SeriesPoint, Timeline } from "./components/Timeline";
 import {
@@ -46,12 +46,25 @@ function useDarkMode() {
   return dark;
 }
 
-function loadPoints(): { home: LngLat | null; work: LngLat | null } {
+type Points = { home: SavedPoint | null; work: SavedPoint | null };
+const MAP_POINT_LABEL = "Punkt na mapie";
+
+/** Accepts the current {pos,label} shape and the earlier bare [lng,lat] one. */
+function toSaved(v: unknown): SavedPoint | null {
+  if (Array.isArray(v) && v.length === 2) return { pos: v as LngLat, label: MAP_POINT_LABEL };
+  if (v && typeof v === "object" && Array.isArray((v as SavedPoint).pos)) {
+    const s = v as SavedPoint;
+    return { pos: s.pos, label: typeof s.label === "string" ? s.label : MAP_POINT_LABEL };
+  }
+  return null;
+}
+
+function loadPoints(): Points {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const v = JSON.parse(raw) as { home?: LngLat; work?: LngLat };
-      return { home: v.home ?? null, work: v.work ?? null };
+      const v = JSON.parse(raw) as { home?: unknown; work?: unknown };
+      return { home: toSaved(v.home), work: toSaved(v.work) };
     }
   } catch {
     /* storage unavailable */
@@ -59,7 +72,7 @@ function loadPoints(): { home: LngLat | null; work: LngLat | null } {
   return { home: null, work: null };
 }
 
-function savePoints(v: { home: LngLat | null; work: LngLat | null }) {
+function savePoints(v: Points) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(v));
   } catch {
@@ -109,8 +122,8 @@ export function App() {
   const [commuteError, setCommuteError] = useState<string | null>(null);
 
   const setPoint = useCallback(
-    (kind: PointKind, p: LngLat) => {
-      const next = { ...points, [kind]: roundLngLat(p) };
+    (kind: PointKind, p: LngLat, label = MAP_POINT_LABEL) => {
+      const next = { ...points, [kind]: { pos: roundLngLat(p), label } };
       setPoints(next);
       savePoints(next);
       // After placing one point, go straight to the other if it is still missing.
@@ -120,7 +133,7 @@ export function App() {
   );
 
   const clearPoints = () => {
-    const empty = { home: null, work: null };
+    const empty: Points = { home: null, work: null };
     setPoints(empty);
     savePoints(empty);
     setCommute(null);
@@ -135,7 +148,7 @@ export function App() {
     setCommuteError(null);
     const t = setTimeout(() => {
       fetch(
-        `/api/commute?city=${CITY}&home=${formatLngLat(points.home!)}&work=${formatLngLat(points.work!)}&dow=${commuteDow}`,
+        `/api/commute?city=${CITY}&home=${formatLngLat(points.home!.pos)}&work=${formatLngLat(points.work!.pos)}&dow=${commuteDow}`,
         { signal: ctrl.signal },
       )
         .then(async (res) => {
@@ -154,7 +167,7 @@ export function App() {
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [points.home, points.work, commuteDow]);
+  }, [points.home?.pos[0], points.home?.pos[1], points.work?.pos[0], points.work?.pos[1], commuteDow]);
 
   // ---- city data ----
   const loadLive = useCallback(
@@ -288,8 +301,8 @@ export function App() {
             setSheetOpen(true);
           }}
           mode={tab}
-          home={points.home}
-          work={points.work}
+          home={points.home?.pos ?? null}
+          work={points.work?.pos ?? null}
           picking={tab === "commute" ? picking : null}
           onPoint={setPoint}
           commute={tab === "commute" && commute ? commute.geometry : null}
@@ -298,7 +311,7 @@ export function App() {
 
       {tab === "commute" && picking && (
         <div className="pick-hint" role="status">
-          Kliknij na mapie, gdzie jest {picking === "home" ? "Twój dom" : "Twoja praca"}
+          Kliknij na mapie, gdzie jest {picking === "home" ? "Twój dom" : "Twoja praca"}, albo wpisz adres w panelu
           <button onClick={() => setPicking(null)} aria-label="Anuluj">
             ×
           </button>
@@ -349,6 +362,7 @@ export function App() {
             work={points.work}
             picking={picking}
             onPick={setPicking}
+            onSelect={setPoint}
             onClear={clearPoints}
             dow={commuteDow}
             onDow={setCommuteDow}

@@ -11,7 +11,7 @@ To przepisana wersja projektu z 2015 roku (Ember 1.8 + Rails 4.1 + Bing Maps).
 - **Miasto, teraz:** mapa 12 korytarzy pokolorowanych wg korków, średni czas dojazdu, odchylenie od pustej drogi i od typowego dnia.
 - **Przebieg dnia:** wykres całego dnia na tle średniej dla tego dnia tygodnia; przeciągnięcie po wykresie „przewija” mapę w czasie. Ostatnie 7 dni do wyboru.
 - **Dzień vs noc:** najgorszy moment dnia (06:00-20:00) zestawiony z najspokojniejszym pomiarem nocnym, dla miasta i dla każdego wlotu.
-- **Mój dojazd:** dom i praca zaznaczone na mapie (można przeciągać). Backend liczy prognozę dla 26 godzin wyjazdu (rano 05:30-10:30, popołudnie 14:00-20:00, noc 03:00) na wybrany dzień tygodnia i wskazuje najlepszą godzinę oraz różnicę dzień/noc.
+- **Mój dojazd:** dom i praca wpisane jako adres lub nazwa miejsca (z podpowiedziami) albo zaznaczone na mapie (można przeciągać). Backend liczy prognozę dla 26 godzin wyjazdu (rano 05:30-10:30, popołudnie 14:00-20:00, noc 03:00) na wybrany dzień tygodnia i wskazuje najlepszą godzinę oraz różnicę dzień/noc.
 
 ## Skąd dane
 
@@ -19,7 +19,7 @@ Sprawdziliśmy publiczne źródła Warszawy. ZDM publikuje natężenie ruchu z s
 
 Czasy przejazdu pochodzą z **Amazon Location Service Routes** (silnik HERE, `Traffic: UseTrafficData`): `Duration` to czas z bieżącym ruchem, `BestCaseDuration` to czas przy pustej drodze. Dla przyszłych godzin wyjazdu (Mój dojazd) HERE zwraca prognozę na podstawie historycznych wzorców ruchu. Bing Maps, z którego korzystała stara wersja, został wygaszony.
 
-Koszt: 0,50 USD za 1000 tras. 12 tras × 78 pomiarów dziennie (co 15 min w 05:00-22:45, co godzinę w nocy) to około 14 USD miesięcznie. Pierwsze 3 miesiące obejmuje free tier (10 tys. tras miesięcznie). Jedno nowe wyszukiwanie dojazdu to 26 tras (ok. 0,013 USD); wyniki są cache'owane 7 dni, a dzienne limity (na IP i globalny) ograniczają najgorszy przypadek do ok. 2 USD dziennie.
+Koszt: 0,50 USD za 1000 tras. 12 tras × 78 pomiarów dziennie (co 15 min w 05:00-22:45, co godzinę w nocy) to około 14 USD miesięcznie. Pierwsze 3 miesiące obejmuje free tier (10 tys. tras miesięcznie). Wyszukiwanie adresów: podpowiedzi przy pisaniu przez Places `Suggest` (0,20 USD / 1000, tryb `SingleUse`, więc odpowiedzi nie są cache'owane), a współrzędne wybranej pozycji przez `GetPlace` w trybie `Storage` (4 USD / 1000), bo przeglądarka zapamiętuje punkt. Oba mają dzienne limity na IP i globalne. Jedno nowe wyszukiwanie dojazdu to 26 tras (ok. 0,013 USD); wyniki są cache'owane 7 dni, a dzienne limity (na IP i globalny) ograniczają najgorszy przypadek do ok. 2 USD dziennie.
 
 ## Architektura
 
@@ -48,7 +48,7 @@ CloudFront ── /api/* ──▶ Lambda API (Function URL, OAC) ──▶ Dyna
 | `DAY#warszawa#2026-11-07` | ISO czasu slotu | pomiar wszystkich tras (TTL 2 lata) |
 | `PROFILE#warszawa#<1-7>` | `HH:MM` | sumy narastające do średniej dla dnia tygodnia i slotu |
 | `COMMUTE#<sha256>` | `v1` | cache prognozy dojazdu (TTL 7 dni, współrzędne tylko w hashu) |
-| `QUOTA#<data>` | `ALL` / `IP#<sha256>` | dzienne limity wyszukiwań |
+| `QUOTA#<data>` | `<rodzaj>#ALL` / `<rodzaj>#IP#<sha256>` | dzienne limity (commute, suggest, place) |
 
 Zapis pomiaru jest warunkowy (`attribute_not_exists`), więc ponowienie tego samego slotu nie liczy się podwójnie do profili.
 
@@ -59,6 +59,8 @@ Zapis pomiaru jest warunkowy (`attribute_not_exists`), więc ponowienie tego sam
 - `GET /api/cities/warszawa/day?date=YYYY-MM-DD`
 - `GET /api/cities/warszawa/profile?dow=1..7`
 - `GET /api/commute?home=lng,lat&work=lng,lat&dow=1..7`
+- `GET /api/places/suggest?q=tekst`: podpowiedzi adresów i miejsc w promieniu 60 km
+- `GET /api/places/detail?id=<placeId>`: nazwa i współrzędne wybranej podpowiedzi
 
 ## Co naprawiliśmy względem wersji z 2015
 

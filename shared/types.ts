@@ -95,3 +95,15 @@ export interface CommuteResponse {
   night: { toWork: CommuteOption; toHome: CommuteOption };
   geometry: { toWork: LngLat[]; toHome: LngLat[] };
 }
+
+export interface PlaceSuggestion {
+  /** Opaque provider id, exchanged for coordinates via /api/places/detail. */
+  id: string;
+  title: string;
+  subtitle: string;
+}
+
+export interface PlaceDetails {
+  title: string;
+  position: LngLat;
+}

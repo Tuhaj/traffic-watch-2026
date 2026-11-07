@@ -3,7 +3,8 @@ import { CITIES } from "../../shared/cities";
 import { formatLngLat, parseLngLat } from "../../shared/geo";
 import { nextDateForDow, slotRange, zonedToUtc } from "../../shared/time";
 import { viewerIp } from "../src/api";
-import { CommuteError, pickBest, validate, WINDOWS } from "../src/commute";
+import { pickBest, validate, WINDOWS } from "../src/commute";
+import { ApiError } from "../src/quota";
 
 const city = CITIES[0]!;
 
@@ -34,7 +35,7 @@ describe("geo", () => {
 
 describe("commute", () => {
   it("rejects points outside the metro area or too close together", () => {
-    expect(() => validate(city, [19.94, 50.06], [21.0, 52.23])).toThrow(CommuteError);
+    expect(() => validate(city, [19.94, 50.06], [21.0, 52.23])).toThrow(ApiError);
     expect(() => validate(city, [21.0, 52.23], [21.001, 52.2301])).toThrow(/blisko/);
     expect(() => validate(city, [21.023, 52.08], [20.985, 52.235])).not.toThrow();
   });
@@ -47,5 +48,34 @@ describe("commute", () => {
     expect(viewerIp(ev({ "cloudfront-viewer-address": "1.2.3.4:5678" }))).toBe("1.2.3.4");
     expect(viewerIp(ev({ "cloudfront-viewer-address": "2001:db8::1:443" }))).toBe("2001:db8::1");
     expect(viewerIp(ev({}))).toBe("9.9.9.9");
+  });
+});
+
+describe("places", async () => {
+  const { shortLabel, toSuggestion, suggestPlaces } = await import("../src/places");
+  it("shortens Polish address labels", () => {
+    expect(shortLabel("ulica Puławska 30, 02-512 Warszawa, Polska")).toBe("ul. Puławska 30, 02-512 Warszawa");
+    expect(shortLabel("Galeria Mokotów, ulica Wołoska 12, 02-675 Warszawa, Polska")).toBe("Galeria Mokotów, ul. Wołoska 12, 02-675 Warszawa");
+    expect(shortLabel("aleja Jana Pawła II 1, 00-001 Warszawa, Polska")).toBe("al. Jana Pawła II 1, 00-001 Warszawa");
+  });
+  it("maps suggest items for addresses and POIs, skipping query refinements", () => {
+    expect(
+      toSuggestion({
+        SuggestResultItemType: "Place",
+        Title: "ulica Puławska (ulica Pulawska) 30, 02-512 Warszawa, Polska",
+        Place: { PlaceId: "abc", PlaceType: "PointAddress", Address: { Label: "ulica Puławska 30, 02-512 Warszawa, Polska" } },
+      } as never),
+    ).toEqual({ id: "abc", title: "ul. Puławska 30, 02-512 Warszawa", subtitle: "" });
+    expect(
+      toSuggestion({
+        SuggestResultItemType: "Place",
+        Title: "Galeria Mokotów",
+        Place: { PlaceId: "p1", PlaceType: "PointOfInterest", Address: { Label: "Galeria Mokotów, ulica Wołoska 12, 02-675 Warszawa, Polska" } },
+      } as never),
+    ).toEqual({ id: "p1", title: "Galeria Mokotów", subtitle: "ul. Wołoska 12, 02-675 Warszawa" });
+    expect(toSuggestion({ SuggestResultItemType: "Query", Title: "x" } as never)).toBeNull();
+  });
+  it("does not call the provider for short queries", async () => {
+    expect(await suggestPlaces(city, "ab", "1.1.1.1")).toEqual([]);
   });
 });
