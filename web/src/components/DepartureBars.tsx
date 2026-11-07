@@ -4,31 +4,35 @@ import { minutes } from "../format";
 
 interface Props {
   options: CommuteOption[];
-  /** Night duration, used as the "empty road" baseline for colouring. */
+  /** Fastest possible time, used as the "1.0" baseline for colouring. */
   baseline: number;
   label: string;
+  selected: string;
+  best: string;
+  onSelect: (depart: string) => void;
 }
 
-export function DepartureBars({ options, baseline, label }: Props) {
+export function DepartureBars({ options, baseline, label, selected, best, onSelect }: Props) {
   if (!options.length) return null;
   const max = Math.max(...options.map((o) => o.duration));
-  const min = Math.min(...options.map((o) => o.duration));
-  const best = options.find((o) => o.duration === min)!;
   return (
-    <figure className="bars" aria-label={label}>
-      <div className="bars-plot">
+    <figure className="bars">
+      <div className="bars-plot" role="radiogroup" aria-label={label}>
         {options.map((o) => {
           const lv = levelFor(o.duration / Math.max(1, baseline));
-          const isBest = o === best;
           return (
-            <div
+            <button
               key={o.depart}
-              className={`bar ${isBest ? "best" : ""}`}
-              title={`Wyjazd ${o.depart}: ${minutes(o.duration)} min`}
+              type="button"
+              role="radio"
+              aria-checked={o.depart === selected}
+              aria-label={`Wyjazd ${o.depart}, ${minutes(o.duration)} min${o.depart === best ? ", najszybciej" : ""}`}
+              className={`bar ${o.depart === selected ? "selected" : ""} ${o.depart === best ? "best" : ""}`}
+              onClick={() => onSelect(o.depart)}
             >
               <span className="bar-val">{minutes(o.duration)}</span>
               <i style={{ height: `${Math.max(8, (o.duration / max) * 100)}%`, background: lv.color }} />
-            </div>
+            </button>
           );
         })}
       </div>
@@ -37,9 +41,6 @@ export function DepartureBars({ options, baseline, label }: Props) {
           <span key={o.depart}>{o.depart.endsWith(":00") ? o.depart.slice(0, 2) : ""}</span>
         ))}
       </div>
-      <figcaption className="sr-only">
-        {options.map((o) => `${o.depart}: ${minutes(o.duration)} min`).join(", ")}
-      </figcaption>
     </figure>
   );
 }

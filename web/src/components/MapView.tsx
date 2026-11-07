@@ -1,7 +1,7 @@
 import maplibregl, { type GeoJSONSource, type Map as MlMap } from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 import { levelFor } from "../../../shared/congestion";
-import type { LngLat, RouteReading, RouteState } from "../../../shared/types";
+import type { CommuteLeg, LngLat, RouteReading, RouteState } from "../../../shared/types";
 import { minutes } from "../format";
 
 interface Props {
@@ -19,17 +19,24 @@ interface Props {
   work: LngLat | null;
   picking: "home" | "work" | null;
   onPoint: (kind: "home" | "work", p: LngLat) => void;
-  commute: { toWork: LngLat[]; toHome: LngLat[] } | null;
+  /** Legs of the currently selected commute option. */
+  commute: CommuteLeg[] | null;
+  commuteColor: string;
 }
 
 const CITY_LAYERS = ["routes-casing", "routes-line", "origins", "origin-labels"];
-const COMMUTE_COLORS = { toWork: "#2f6fed", toHome: "#8b5cf6" };
+const COMMUTE_LAYERS = ["commute-casing", "commute-line", "commute-walk"];
 
-function line(coords: LngLat[] | undefined) {
+function legsGeoJson(legs: CommuteLeg[] | null, color: string) {
   return {
-    type: "Feature" as const,
-    properties: {},
-    geometry: { type: "LineString" as const, coordinates: coords && coords.length > 1 ? coords : [] },
+    type: "FeatureCollection" as const,
+    features: (legs ?? [])
+      .filter((l) => l.geometry.length > 1)
+      .map((l) => ({
+        type: "Feature" as const,
+        properties: { walk: l.kind === "walk" ? 1 : 0, color: l.kind === "transit" && l.color ? l.color : color },
+        geometry: { type: "LineString" as const, coordinates: l.geometry },
+      })),
   };
 }
 
@@ -195,27 +202,31 @@ export function MapView(props: Props) {
           "circle-stroke-width": 3,
         },
       });
-      for (const dir of ["toHome", "toWork"] as const) {
-        m.addSource(`commute-${dir}`, { type: "geojson", data: line(p.commute?.[dir]) });
-        m.addLayer({
-          id: `commute-${dir}-casing`,
-          type: "line",
-          source: `commute-${dir}`,
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": p.dark ? "#0e1116" : "#ffffff", "line-width": 9 },
-        });
-        m.addLayer({
-          id: `commute-${dir}`,
-          type: "line",
-          source: `commute-${dir}`,
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: {
-            "line-color": COMMUTE_COLORS[dir],
-            "line-width": 5,
-            ...(dir === "toHome" ? { "line-dasharray": [1.4, 1.2] } : {}),
-          },
-        });
-      }
+      m.addSource("commute", { type: "geojson", data: legsGeoJson(p.commute, p.commuteColor) });
+      m.addLayer({
+        id: "commute-casing",
+        type: "line",
+        source: "commute",
+        filter: ["==", ["get", "walk"], 0],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": p.dark ? "#0e1116" : "#ffffff", "line-width": 9 },
+      });
+      m.addLayer({
+        id: "commute-line",
+        type: "line",
+        source: "commute",
+        filter: ["==", ["get", "walk"], 0],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": 5 },
+      });
+      m.addLayer({
+        id: "commute-walk",
+        type: "line",
+        source: "commute",
+        filter: ["==", ["get", "walk"], 1],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": p.dark ? "#c3c9d4" : "#5b6474", "line-width": 3, "line-dasharray": [0.1, 2] },
+      });
       setReady((n) => n + 1);
     });
 
@@ -277,9 +288,7 @@ export function MapView(props: Props) {
     if (!m || !ready) return;
     const city = props.mode === "city";
     for (const id of CITY_LAYERS) m.setLayoutProperty(id, "visibility", city ? "visible" : "none");
-    for (const dir of ["toHome", "toWork"]) {
-      for (const id of [`commute-${dir}`, `commute-${dir}-casing`]) m.setLayoutProperty(id, "visibility", city ? "none" : "visible");
-    }
+    for (const id of COMMUTE_LAYERS) m.setLayoutProperty(id, "visibility", city ? "none" : "visible");
     // Back on the city view: show all corridors again.
     if (city && fitted.current) {
       const coords = [...latest.current.routes.map((r) => r.origin), latest.current.center];
@@ -291,16 +300,15 @@ export function MapView(props: Props) {
   useEffect(() => {
     const m = map.current;
     if (!m || !ready) return;
-    (m.getSource("commute-toWork") as GeoJSONSource | undefined)?.setData(line(props.commute?.toWork));
-    (m.getSource("commute-toHome") as GeoJSONSource | undefined)?.setData(line(props.commute?.toHome));
-    const coords = [...(props.commute?.toWork ?? []), ...(props.commute?.toHome ?? [])];
+    (m.getSource("commute") as GeoJSONSource | undefined)?.setData(legsGeoJson(props.commute, props.commuteColor));
+    const coords = [...(props.commute ?? []).flatMap((l) => l.geometry), ...[props.home, props.work].filter((p): p is LngLat => !!p)];
     if (props.mode === "commute" && coords.length > 1) {
       const b = coords.reduce((acc, c) => acc.extend(c), new maplibregl.LngLatBounds(coords[0]!, coords[0]!));
       const pad = padding();
       // Leave room above the tallest pin.
       m.fitBounds(b, { padding: { ...pad, top: pad.top + 40 }, maxZoom: 14, duration: 600 });
     }
-  }, [ready, props.commute, props.mode]);
+  }, [ready, props.commute, props.commuteColor, props.mode]);
 
   useEffect(() => {
     const m = map.current;

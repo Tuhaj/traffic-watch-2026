@@ -40,7 +40,8 @@ describe("commute", () => {
     expect(() => validate(city, [21.023, 52.08], [20.985, 52.235])).not.toThrow();
   });
   it("picks the fastest departure", () => {
-    expect(pickBest([{ depart: "07:00", duration: 2000, distance: 1 }, { depart: "06:00", duration: 1500, distance: 1 }])?.depart).toBe("06:00");
+    const o = (depart: string, duration: number) => ({ depart, arrive: "", duration, distance: 1, legs: [] });
+    expect(pickBest([o("07:00", 2000), o("06:00", 1500)])?.depart).toBe("06:00");
     expect(pickBest([])).toBeUndefined();
   });
   it("reads the viewer IP from CloudFront", () => {
@@ -77,5 +78,43 @@ describe("places", async () => {
   });
   it("does not call the provider for short queries", async () => {
     expect(await suggestPlaces(city, "ab", "1.1.1.1")).toEqual([]);
+  });
+});
+
+describe("modes", async () => {
+  const { decodePolyline6, mergeWalks, transitLeg, vehicleLabel } = await import("../src/modes");
+  it("merges consecutive walking legs", () => {
+    const walk = (d: number) => ({ kind: "walk" as const, duration: d, distance: d, geometry: [[21, 52]] as [number, number][] });
+    const tram = { kind: "transit" as const, duration: 600, distance: 3000, geometry: [] };
+    const out = mergeWalks([walk(60), tram, walk(60), walk(660)]);
+    expect(out.map((l) => [l.kind, l.duration])).toEqual([["walk", 60], ["transit", 600], ["walk", 720]]);
+  });
+  it("decodes Valhalla polyline6", () => {
+    // Encoded with precision 6: (52.2053, 21.0225) -> (52.1799, 21.004)
+    const enc = "gnjqbBgqbbg@nrp@fcc@";
+    const pts = decodePolyline6(enc);
+    expect(pts).toHaveLength(2);
+    expect(pts[0]![0]).toBeCloseTo(21.0225, 4);
+    expect(pts[0]![1]).toBeCloseTo(52.2053, 4);
+    expect(pts[1]![1]).toBeLessThan(pts[0]![1]);
+  });
+  it("maps a transit leg with line, stops and local times", () => {
+    const leg = transitLeg(
+      {
+        Type: "Transit",
+        TravelMode: "LightRail",
+        Geometry: { LineString: [[21.0229, 52.2052], [20.9829, 52.23]] },
+        TransitLegDetails: {
+          Departure: { Place: { Name: "Dworkowa", Position: [21.0229, 52.2052] }, Time: "2026-11-09T07:31:00+01:00" },
+          Arrival: { Place: { Name: "Rondo Daszyńskiego", Position: [20.9829, 52.23] }, Time: "2026-11-09T07:51:00+01:00" },
+          Transport: { Mode: "LightRail", ShortRouteName: "10", Headsign: "Os. Górczewska", Color: "#B60000" },
+          Summary: { Overview: { Duration: 1200, Distance: 5171 } },
+        },
+      } as never,
+      "Europe/Warsaw",
+    );
+    expect(leg).toMatchObject({ kind: "transit", vehicle: "Tramwaj", line: "10", from: "Dworkowa", departs: "07:31", arrives: "07:51", duration: 1200 });
+    expect(vehicleLabel("Subway")).toBe("Metro");
+    expect(vehicleLabel(undefined)).toBe("Transport");
   });
 });

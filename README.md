@@ -11,13 +11,17 @@ To przepisana wersja projektu z 2015 roku (Ember 1.8 + Rails 4.1 + Bing Maps).
 - **Miasto, teraz:** mapa 12 korytarzy pokolorowanych wg korków, średni czas dojazdu, odchylenie od pustej drogi i od typowego dnia.
 - **Przebieg dnia:** wykres całego dnia na tle średniej dla tego dnia tygodnia; przeciągnięcie po wykresie „przewija” mapę w czasie. Ostatnie 7 dni do wyboru.
 - **Dzień vs noc:** najgorszy moment dnia (06:00-20:00) zestawiony z najspokojniejszym pomiarem nocnym, dla miasta i dla każdego wlotu.
-- **Mój dojazd:** dom i praca wpisane jako adres lub nazwa miejsca (z podpowiedziami) albo zaznaczone na mapie (można przeciągać). Backend liczy prognozę dla 26 godzin wyjazdu (rano 05:30-10:30, popołudnie 14:00-20:00, noc 03:00) na wybrany dzień tygodnia i wskazuje najlepszą godzinę oraz różnicę dzień/noc.
+- **Mój dojazd:** dom i praca wpisane jako adres lub nazwa miejsca (z podpowiedziami) albo zaznaczone na mapie (można przeciągać). Do wyboru samochód, komunikacja miejska i rower. Dla samochodu i komunikacji backend liczy podróż dla 26 godzin wyjazdu (rano 05:30-10:30, popołudnie 14:00-20:00, noc 03:00) na wybrany dzień tygodnia. Przełącznik „Do pracy / Powrót” pokazuje najlepszą godzinę, klikalne słupki dla każdej godziny i różnicę dzień/noc. Po kliknięciu słupka widać szczegóły (dla komunikacji linie, przystanki i godziny), a mapa rysuje tę trasę.
 
 ## Skąd dane
 
 Sprawdziliśmy publiczne źródła Warszawy. ZDM publikuje natężenie ruchu z systemu APR (liczba pojazdów, raport w przeglądarce, bez API i bez dróg ekspresowych), a api.um.warszawa.pl / dane.um.warszawa.pl udostępniają głównie dane komunikacji miejskiej. Nie ma publicznych czasów przejazdu, więc zostały crony.
 
 Czasy przejazdu pochodzą z **Amazon Location Service Routes** (silnik HERE, `Traffic: UseTrafficData`): `Duration` to czas z bieżącym ruchem, `BestCaseDuration` to czas przy pustej drodze. Dla przyszłych godzin wyjazdu (Mój dojazd) HERE zwraca prognozę na podstawie historycznych wzorców ruchu. Bing Maps, z którego korzystała stara wersja, został wygaszony.
+
+**Komunikacja miejska:** Amazon Location `TravelMode: Transit` (HERE, rozkłady ZTM, przesiadki, numery i kolory linii). API miasta (api.um.warszawa.pl) wymaga klucza i daje pozycje pojazdów, przystanki oraz rozkłady per przystanek, ale nie ma planera podróży; HERE korzysta z tych samych rozkładów, więc nie trzeba pisać własnego routera.
+
+**Rower:** Amazon Location nie ma trybu rowerowego, więc trasę liczy [Valhalla](https://github.com/valhalla/valhalla) na OpenStreetMap (publiczny serwer FOSSGIS, profil `bicycle`, ok. 18 km/h). Czas nie zależy od godziny, więc to tylko 2 zapytania na parę punktów, cache'owane 7 dni, z identyfikującym User-Agentem i limitami. Przy większym ruchu warto postawić własną instancję (`VALHALLA_URL`).
 
 Koszt: 0,50 USD za 1000 tras. 12 tras × 78 pomiarów dziennie (co 15 min w 05:00-22:45, co godzinę w nocy) to około 14 USD miesięcznie. Pierwsze 3 miesiące obejmuje free tier (10 tys. tras miesięcznie). Wyszukiwanie adresów: podpowiedzi przy pisaniu przez Places `Suggest` (0,20 USD / 1000, tryb `SingleUse`, więc odpowiedzi nie są cache'owane), a współrzędne wybranej pozycji przez `GetPlace` w trybie `Storage` (4 USD / 1000), bo przeglądarka zapamiętuje punkt. Oba mają dzienne limity na IP i globalne. Jedno nowe wyszukiwanie dojazdu to 26 tras (ok. 0,013 USD); wyniki są cache'owane 7 dni, a dzienne limity (na IP i globalny) ograniczają najgorszy przypadek do ok. 2 USD dziennie.
 
@@ -58,7 +62,7 @@ Zapis pomiaru jest warunkowy (`attribute_not_exists`), więc ponowienie tego sam
 - `GET /api/cities/warszawa`: trasy z geometrią i ostatni pomiar
 - `GET /api/cities/warszawa/day?date=YYYY-MM-DD`
 - `GET /api/cities/warszawa/profile?dow=1..7`
-- `GET /api/commute?home=lng,lat&work=lng,lat&dow=1..7`
+- `GET /api/commute?home=lng,lat&work=lng,lat&dow=1..7&mode=car|transit|bike`
 - `GET /api/places/suggest?q=tekst`: podpowiedzi adresów i miejsc w promieniu 60 km
 - `GET /api/places/detail?id=<placeId>`: nazwa i współrzędne wybranej podpowiedzi
 

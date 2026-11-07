@@ -2,9 +2,10 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import { haversine } from "../../shared/geo";
 import { nextDateForDow, slotRange, zonedToUtc } from "../../shared/time";
-import type { CityDef, CommuteOption, CommuteResponse, LngLat } from "../../shared/types";
+import type { CityDef, CommuteOption, CommuteResponse, LngLat, TravelMode } from "../../shared/types";
 import { ApiError, consumeQuota, hash } from "./quota";
-import { calculateRoute, pool, type RouteResult } from "./routing";
+import { bikeOption, carOption, transitOption } from "./modes";
+import { pool } from "./routing";
 
 const TABLE = process.env.TABLE_NAME!;
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -18,10 +19,12 @@ export const WINDOWS = {
 export const MAX_RADIUS_M = 60_000;
 const MIN_DISTANCE_M = 500;
 const CACHE_DAYS = 7;
-const QUOTA = {
-  name: "commute",
-  global: Number(process.env.COMMUTE_DAILY_LIMIT ?? 150),
-  perIp: Number(process.env.COMMUTE_PER_IP_LIMIT ?? 12),
+export const MODES: TravelMode[] = ["car", "transit", "bike"];
+/** Car and transit: 26 Amazon Location routes per uncached lookup. Bike: 2 Valhalla requests. */
+const QUOTAS: Record<TravelMode, { name: string; global: number; perIp: number }> = {
+  car: { name: "commute", global: Number(process.env.COMMUTE_DAILY_LIMIT ?? 150), perIp: Number(process.env.COMMUTE_PER_IP_LIMIT ?? 12) },
+  transit: { name: "transit", global: Number(process.env.COMMUTE_DAILY_LIMIT ?? 150), perIp: Number(process.env.COMMUTE_PER_IP_LIMIT ?? 12) },
+  bike: { name: "bike", global: 600, perIp: 30 },
 };
 
 export function validate(city: CityDef, home: LngLat, work: LngLat) {
@@ -37,7 +40,13 @@ export function pickBest(options: CommuteOption[]): CommuteOption | undefined {
   return options.reduce<CommuteOption | undefined>((best, o) => (!best || o.duration < best.duration ? o : best), undefined);
 }
 
-export async function computeCommute(city: CityDef, home: LngLat, work: LngLat, dow: number): Promise<CommuteResponse> {
+async function computeTimed(
+  city: CityDef,
+  home: LngLat,
+  work: LngLat,
+  dow: number,
+  mode: "car" | "transit",
+): Promise<CommuteResponse> {
   const date = nextDateForDow(dow, city.timezone);
   type Job = { dir: "toWork" | "toHome"; depart: string; night?: boolean };
   const jobs: Job[] = [
@@ -46,52 +55,87 @@ export async function computeCommute(city: CityDef, home: LngLat, work: LngLat, 
     { dir: "toWork", depart: WINDOWS.night, night: true },
     { dir: "toHome", depart: WINDOWS.night, night: true },
   ];
+  const calc = mode === "car" ? carOption : transitOption;
   const results = await pool(jobs, 6, (j) => {
     const at = zonedToUtc(date, Number(j.depart.slice(0, 2)), Number(j.depart.slice(3, 5)), city.timezone);
-    return j.dir === "toWork" ? calculateRoute(home, work, at) : calculateRoute(work, home, at);
+    return j.dir === "toWork" ? calc(home, work, at, city.timezone) : calc(work, home, at, city.timezone);
   });
 
-  const out: CommuteResponse = {
-    date,
-    dow,
-    toWork: [],
-    toHome: [],
-    night: { toWork: { depart: WINDOWS.night, duration: 0, distance: 0 }, toHome: { depart: WINDOWS.night, duration: 0, distance: 0 } },
-    geometry: { toWork: [], toHome: [] },
-  };
-  const bestGeometry: Record<"toWork" | "toHome", RouteResult | undefined> = { toWork: undefined, toHome: undefined };
-
+  const out = { toWork: [] as CommuteOption[], toHome: [] as CommuteOption[] };
+  const night: Partial<CommuteResponse["night"]> = {};
   results.forEach((r, i) => {
     const job = jobs[i]!;
     if (r.status === "rejected") {
-      console.error(JSON.stringify({ msg: "commute route failed", depart: job.depart, dir: job.dir, error: String(r.reason) }));
+      console.error(JSON.stringify({ msg: "commute route failed", mode, depart: job.depart, dir: job.dir, error: String(r.reason) }));
       return;
     }
-    const opt: CommuteOption = { depart: job.depart, duration: r.value.duration, distance: r.value.distance };
-    if (job.night) out.night[job.dir] = opt;
-    else out[job.dir].push(opt);
-    const cur = bestGeometry[job.dir];
-    if (!job.night && (!cur || r.value.duration < cur.duration)) bestGeometry[job.dir] = r.value;
+    if (job.night) night[job.dir] = r.value;
+    else out[job.dir].push(r.value);
   });
 
-  if (!out.toWork.length || !out.toHome.length) throw new ApiError(502, "Nie udało się wyznaczyć trasy. Spróbuj przesunąć punkty bliżej drogi.");
-  // Fall back to the fastest daytime option if the night calculation failed.
-  for (const dir of ["toWork", "toHome"] as const) {
-    if (!out.night[dir].duration) out.night[dir] = { ...pickBest(out[dir])!, depart: WINDOWS.night };
-    out.geometry[dir] = bestGeometry[dir]?.geometry ?? [];
+  if (!out.toWork.length || !out.toHome.length) {
+    throw new ApiError(
+      502,
+      mode === "transit"
+        ? "Nie udało się znaleźć połączenia komunikacją miejską. Spróbuj przesunąć punkty."
+        : "Nie udało się wyznaczyć trasy. Spróbuj przesunąć punkty bliżej drogi.",
+    );
   }
-  return out;
+  return {
+    mode,
+    date,
+    dow,
+    timeIndependent: false,
+    ...out,
+    night: {
+      // If the night calculation failed (e.g. no night bus), fall back to the fastest daytime option.
+      toWork: night.toWork ?? pickBest(out.toWork)!,
+      toHome: night.toHome ?? pickBest(out.toHome)!,
+    },
+  };
+}
+
+async function computeBike(city: CityDef, home: LngLat, work: LngLat, dow: number): Promise<CommuteResponse> {
+  const [toWork, toHome] = await Promise.all([bikeOption(home, work), bikeOption(work, home)]).catch((e) => {
+    console.error(JSON.stringify({ msg: "bike route failed", error: String(e) }));
+    throw new ApiError(502, "Nie udało się wyznaczyć trasy rowerowej. Spróbuj ponownie za chwilę.");
+  });
+  return {
+    mode: "bike",
+    date: nextDateForDow(dow, city.timezone),
+    dow,
+    timeIndependent: true,
+    toWork: [toWork],
+    toHome: [toHome],
+    night: { toWork, toHome },
+  };
+}
+
+export function computeCommute(city: CityDef, home: LngLat, work: LngLat, dow: number, mode: TravelMode = "car") {
+  return mode === "bike" ? computeBike(city, home, work, dow) : computeTimed(city, home, work, dow, mode);
 }
 
 /** Cached, quota-protected commute lookup. Coordinates are only stored hashed. */
-export async function getCommute(city: CityDef, home: LngLat, work: LngLat, dow: number, ip: string): Promise<CommuteResponse> {
+export async function getCommute(
+  city: CityDef,
+  home: LngLat,
+  work: LngLat,
+  dow: number,
+  ip: string,
+  mode: TravelMode = "car",
+): Promise<CommuteResponse> {
   validate(city, home, work);
-  const key = { pk: `COMMUTE#${hash(`${city.id}|${home.join(",")}|${work.join(",")}|${dow}`)}`, sk: "v1" };
+  // Bike durations do not depend on the weekday, so one cache entry serves all days.
+  const dayKey = mode === "bike" ? "any" : String(dow);
+  const key = { pk: `COMMUTE#${hash(`${city.id}|${mode}|${home.join(",")}|${work.join(",")}|${dayKey}`)}`, sk: "v3" };
   const cached = await ddb.send(new GetCommand({ TableName: TABLE, Key: key }));
-  if (cached.Item && Number(cached.Item.ttl) > Date.now() / 1000) return JSON.parse(String(cached.Item.data)) as CommuteResponse;
+  if (cached.Item && Number(cached.Item.ttl) > Date.now() / 1000) {
+    const res = JSON.parse(String(cached.Item.data)) as CommuteResponse;
+    return mode === "bike" ? { ...res, dow, date: nextDateForDow(dow, city.timezone) } : res;
+  }
 
-  await consumeQuota(QUOTA, ip, city.timezone);
-  const res = await computeCommute(city, home, work, dow);
+  await consumeQuota(QUOTAS[mode], ip, city.timezone);
+  const res = await computeCommute(city, home, work, dow, mode);
   await ddb.send(
     new PutCommand({
       TableName: TABLE,

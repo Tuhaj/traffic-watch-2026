@@ -2,7 +2,7 @@ import { CalculateRoutesCommand, GeoRoutesClient } from "@aws-sdk/client-geo-rou
 import type { LngLat } from "../../shared/types";
 import { simplify } from "./geometry";
 
-const geo = new GeoRoutesClient({});
+export const geo = new GeoRoutesClient({});
 
 export interface RouteResult {
   duration: number;

@@ -79,21 +79,49 @@ export interface ProfileResponse {
   slots: ProfileSlot[];
 }
 
+export type TravelMode = "car" | "transit" | "bike";
+
+export interface CommuteLeg {
+  kind: "drive" | "walk" | "transit" | "bike";
+  /** seconds */
+  duration: number;
+  /** metres */
+  distance: number;
+  geometry: LngLat[];
+  /** Transit only. */
+  vehicle?: string;
+  line?: string;
+  headsign?: string;
+  color?: string;
+  textColor?: string;
+  from?: string;
+  to?: string;
+  /** Local "HH:MM" departure / arrival of the vehicle. */
+  departs?: string;
+  arrives?: string;
+}
+
 export interface CommuteOption {
-  /** Local departure time "HH:MM". */
+  /** Local departure time "HH:MM" (empty when the duration does not depend on the time). */
   depart: string;
+  /** Local arrival time "HH:MM". */
+  arrive: string;
+  /** Door to door, seconds (for transit including the wait for the first vehicle). */
   duration: number;
   distance: number;
+  legs: CommuteLeg[];
 }
 
 export interface CommuteResponse {
+  mode: TravelMode;
   /** Calendar date (city timezone) the forecast is computed for. */
   date: string;
   dow: number;
+  /** True for the bike: one duration for any departure time. */
+  timeIndependent: boolean;
   toWork: CommuteOption[];
   toHome: CommuteOption[];
   night: { toWork: CommuteOption; toHome: CommuteOption };
-  geometry: { toWork: LngLat[]; toHome: LngLat[] };
 }
 
 export interface PlaceSuggestion {

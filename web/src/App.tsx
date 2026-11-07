@@ -10,9 +10,10 @@ import type {
   ProfileResponse,
   RouteReading,
   Snapshot,
+  TravelMode,
 } from "../../shared/types";
 import { api } from "./api";
-import { CommutePanel, type PointKind, type SavedPoint } from "./components/CommutePanel";
+import { bestOf, CommutePanel, type Direction, type PointKind, type SavedPoint } from "./components/CommutePanel";
 import { MapView } from "./components/MapView";
 import { type SeriesPoint, Timeline } from "./components/Timeline";
 import {
@@ -30,6 +31,17 @@ const CITY = "warszawa";
 const TZ = "Europe/Warsaw";
 const REFRESH_MS = 60_000;
 const STORAGE_KEY = "tw.commute.v1";
+const MODE_KEY = "tw.mode";
+
+function loadMode(): TravelMode {
+  try {
+    const v = localStorage.getItem(MODE_KEY);
+    if (v === "car" || v === "transit" || v === "bike") return v;
+  } catch {
+    /* storage unavailable */
+  }
+  return "car";
+}
 
 type Tab = "city" | "commute";
 type CityMode = "live" | "daynight";
@@ -117,6 +129,17 @@ export function App() {
   const [points, setPoints] = useState(loadPoints);
   const [picking, setPicking] = useState<PointKind | null>(null);
   const [commuteDow, setCommuteDow] = useState(defaultDow);
+  const [travelMode, setTravelMode] = useState<TravelMode>(loadMode);
+  const [direction, setDirection] = useState<Direction>("toWork");
+  const [selectedDepart, setSelectedDepart] = useState<string | null>(null);
+  const changeMode = (m: TravelMode) => {
+    setTravelMode(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* storage unavailable */
+    }
+  };
   const [commute, setCommute] = useState<CommuteResponse | null>(null);
   const [commuteLoading, setCommuteLoading] = useState(false);
   const [commuteError, setCommuteError] = useState<string | null>(null);
@@ -148,13 +171,14 @@ export function App() {
     setCommuteError(null);
     const t = setTimeout(() => {
       fetch(
-        `/api/commute?city=${CITY}&home=${formatLngLat(points.home!.pos)}&work=${formatLngLat(points.work!.pos)}&dow=${commuteDow}`,
+        `/api/commute?city=${CITY}&mode=${travelMode}&home=${formatLngLat(points.home!.pos)}&work=${formatLngLat(points.work!.pos)}&dow=${travelMode === "bike" ? 1 : commuteDow}`,
         { signal: ctrl.signal },
       )
         .then(async (res) => {
           const body = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error((body as { message?: string }).message ?? `Błąd ${res.status}`);
           setCommute(body as CommuteResponse);
+          setSelectedDepart(null);
         })
         .catch((e: Error) => {
           if (ctrl.signal.aborted) return;
@@ -167,7 +191,15 @@ export function App() {
       clearTimeout(t);
       ctrl.abort();
     };
-  }, [points.home?.pos[0], points.home?.pos[1], points.work?.pos[0], points.work?.pos[1], commuteDow]);
+  }, [points.home?.pos[0], points.home?.pos[1], points.work?.pos[0], points.work?.pos[1], commuteDow, travelMode]);
+
+  // The trip drawn on the map: the selected departure, or the fastest one.
+  const commuteLegs = useMemo(() => {
+    if (!commute || commute.mode !== travelMode) return null;
+    const options = commute[direction];
+    const opt = options.find((o) => o.depart === selectedDepart) ?? bestOf(options);
+    return opt?.legs ?? null;
+  }, [commute, travelMode, direction, selectedDepart]);
 
   // ---- city data ----
   const loadLive = useCallback(
@@ -305,7 +337,8 @@ export function App() {
           work={points.work?.pos ?? null}
           picking={tab === "commute" ? picking : null}
           onPoint={setPoint}
-          commute={tab === "commute" && commute ? commute.geometry : null}
+          commute={tab === "commute" ? commuteLegs : null}
+          commuteColor={direction === "toWork" ? "#2f6fed" : "#8b5cf6"}
         />
       )}
 
@@ -366,6 +399,15 @@ export function App() {
             onClear={clearPoints}
             dow={commuteDow}
             onDow={setCommuteDow}
+            mode={travelMode}
+            onMode={changeMode}
+            direction={direction}
+            onDirection={(d) => {
+              setDirection(d);
+              setSelectedDepart(null);
+            }}
+            selectedDepart={selectedDepart}
+            onSelectDepart={setSelectedDepart}
             data={commute}
             loading={commuteLoading}
             error={commuteError}

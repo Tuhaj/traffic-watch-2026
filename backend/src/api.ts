@@ -14,8 +14,9 @@ import type {
   ProfileResponse,
   ProfileSlot,
   Snapshot,
+  TravelMode,
 } from "../../shared/types";
-import { getCommute } from "./commute";
+import { getCommute, MODES } from "./commute";
 import { ApiError } from "./quota";
 import { getPlace, suggestPlaces } from "./places";
 import { keys } from "./keys";
@@ -141,7 +142,9 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
       const dow = Number(q.dow ?? 1);
       if (!city || !home || !work) return json(400, { message: "home and work must be lng,lat" });
       if (!Number.isInteger(dow) || dow < 1 || dow > 7) return json(400, { message: "dow must be 1..7" });
-      return json(200, await getCommute(city, home, work, dow, viewerIp(event)), 21600);
+      const mode = (q.mode ?? "car") as TravelMode;
+      if (!MODES.includes(mode)) return json(400, { message: "mode must be car, transit or bike" });
+      return json(200, await getCommute(city, home, work, dow, viewerIp(event), mode), 21600);
     }
 
     const m = path.match(/^\/api\/cities\/([a-z0-9-]+)(?:\/(day|profile))?$/);
