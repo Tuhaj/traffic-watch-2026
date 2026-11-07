@@ -1,0 +1,20 @@
+{
+  "name": "@traffic-watch/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1164.0",
+    "@aws-sdk/client-geo-routes": "^3.1164.0",
+    "@aws-sdk/lib-dynamodb": "^3.1164.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.150",
+    "@types/node": "^22.15.0",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.0"
+  }
+}

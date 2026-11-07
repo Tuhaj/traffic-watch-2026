@@ -1,0 +1,13 @@
+{
+  "name": "traffic-watch",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter @traffic-watch/web build",
+    "test": "pnpm --filter @traffic-watch/backend test",
+    "typecheck": "pnpm -r typecheck",
+    "deploy": "pnpm build && pnpm --filter @traffic-watch/infra run deploy"
+  },
+  "packageManager": "pnpm@10.32.1"
+}

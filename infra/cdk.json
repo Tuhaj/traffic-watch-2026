@@ -1,0 +1,7 @@
+{
+  "app": "npx tsx bin/app.ts",
+  "context": {
+    "domainName": "traffic.isy.sh",
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
+  }
+}

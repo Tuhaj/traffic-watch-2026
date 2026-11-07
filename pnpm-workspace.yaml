@@ -1,0 +1,6 @@
+packages:
+  - backend
+  - web
+  - infra
+onlyBuiltDependencies:
+  - esbuild
