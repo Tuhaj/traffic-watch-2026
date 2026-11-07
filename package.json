@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @traffic-watch/web build",
-    "test": "pnpm --filter @traffic-watch/backend test",
+    "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "deploy": "pnpm build && pnpm --filter @traffic-watch/infra run deploy"
   },

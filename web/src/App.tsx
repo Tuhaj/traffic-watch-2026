@@ -16,22 +16,17 @@ import { api } from "./api";
 import { bestOf, CommutePanel, type Direction, type PointKind, type SavedPoint } from "./components/CommutePanel";
 import { MapView } from "./components/MapView";
 import { type SeriesPoint, Timeline } from "./components/Timeline";
-import {
-  fmtDelay,
-  fmtMinutes,
-  fmtPercent,
-  fmtUpdated,
-  minutes,
-  recentDays,
-  slotToMinutes,
-  weekdayLong,
-} from "./format";
+import { fmtPercent, minutes, recentDays, slotToMinutes } from "./format";
+import { errorText, useI18n } from "./i18n";
+import { LangSwitch } from "./i18n/LangSwitch";
 
 const CITY = "warszawa";
 const TZ = "Europe/Warsaw";
 const REFRESH_MS = 60_000;
 const STORAGE_KEY = "tw.commute.v1";
 const MODE_KEY = "tw.mode";
+/** Bumped when the commute response format changes, so CloudFront never serves an old shape. */
+const API_VERSION = 4;
 
 function loadMode(): TravelMode {
   try {
@@ -59,14 +54,17 @@ function useDarkMode() {
 }
 
 type Points = { home: SavedPoint | null; work: SavedPoint | null };
-const MAP_POINT_LABEL = "Punkt na mapie";
+/** Points picked on the map have no address; the UI shows a translated "point on the map" instead. */
+const MAP_POINT_LABEL = "";
+const LEGACY_MAP_POINT_LABEL = "Punkt na mapie";
 
 /** Accepts the current {pos,label} shape and the earlier bare [lng,lat] one. */
 function toSaved(v: unknown): SavedPoint | null {
   if (Array.isArray(v) && v.length === 2) return { pos: v as LngLat, label: MAP_POINT_LABEL };
   if (v && typeof v === "object" && Array.isArray((v as SavedPoint).pos)) {
     const s = v as SavedPoint;
-    return { pos: s.pos, label: typeof s.label === "string" ? s.label : MAP_POINT_LABEL };
+    const label = typeof s.label === "string" && s.label !== LEGACY_MAP_POINT_LABEL ? s.label : MAP_POINT_LABEL;
+    return { pos: s.pos, label };
   }
   return null;
 }
@@ -108,6 +106,8 @@ const isNightSlot = (slot: string) => {
 };
 
 export function App() {
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
   const dark = useDarkMode();
   const days = useMemo(() => recentDays(TZ), []);
   const [tab, setTab] = useState<Tab>("city");
@@ -142,7 +142,7 @@ export function App() {
   };
   const [commute, setCommute] = useState<CommuteResponse | null>(null);
   const [commuteLoading, setCommuteLoading] = useState(false);
-  const [commuteError, setCommuteError] = useState<string | null>(null);
+  const [commuteError, setCommuteError] = useState<{ body: unknown; status: number } | null>(null);
 
   const setPoint = useCallback(
     (kind: PointKind, p: LngLat, label = MAP_POINT_LABEL) => {
@@ -171,19 +171,19 @@ export function App() {
     setCommuteError(null);
     const t = setTimeout(() => {
       fetch(
-        `/api/commute?city=${CITY}&mode=${travelMode}&home=${formatLngLat(points.home!.pos)}&work=${formatLngLat(points.work!.pos)}&dow=${travelMode === "bike" ? 1 : commuteDow}`,
+        `/api/commute?v=${API_VERSION}&city=${CITY}&mode=${travelMode}&home=${formatLngLat(points.home!.pos)}&work=${formatLngLat(points.work!.pos)}&dow=${travelMode === "bike" ? 1 : commuteDow}`,
         { signal: ctrl.signal },
       )
         .then(async (res) => {
-          const body = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error((body as { message?: string }).message ?? `Błąd ${res.status}`);
+          const body = await res.json().catch(() => null);
+          if (!res.ok) throw { body, status: res.status };
           setCommute(body as CommuteResponse);
           setSelectedDepart(null);
         })
-        .catch((e: Error) => {
+        .catch((e: { body?: unknown; status?: number }) => {
           if (ctrl.signal.aborted) return;
           setCommute(null);
-          setCommuteError(e.message);
+          setCommuteError({ body: e?.body ?? null, status: e?.status ?? 0 });
         })
         .finally(() => !ctrl.signal.aborted && setCommuteLoading(false));
     }, 350);
@@ -314,7 +314,10 @@ export function App() {
     ? (dayNight?.night?.routes[selected]?.duration ?? active?.routes[selected]?.freeFlow)
     : (dayNight?.night?.meanDuration ??
       (active ? Math.round(Object.values(active.routes).reduce((a, r) => a + r.freeFlow * r.freeFlow, 0) / Math.max(1, Object.values(active.routes).reduce((a, r) => a + r.freeFlow, 0))) : undefined));
-  const nightLabel = dayNight?.night ? `noc ${dayNight.night.slot}` : "pusta droga";
+  const nightLabel = dayNight?.night ? t("city.nightAt", { slot: dayNight.night.slot }) : t("city.emptyRoad");
+  const min = (sec: number) => t("common.minutes", { n: minutes(sec) });
+  const dayLabel = (d: (typeof days)[number]) =>
+    d.offset === 0 ? t("days.today") : d.offset === 1 ? t("days.yesterday") : fmt.weekdayShort(d.dow);
 
   return (
     <div className="app">
@@ -344,34 +347,37 @@ export function App() {
 
       {tab === "commute" && picking && (
         <div className="pick-hint" role="status">
-          Kliknij na mapie, gdzie jest {picking === "home" ? "Twój dom" : "Twoja praca"}, albo wpisz adres w panelu
-          <button onClick={() => setPicking(null)} aria-label="Anuluj">
+          {t(picking === "home" ? "pick.home" : "pick.work")}
+          <button onClick={() => setPicking(null)} aria-label={t("common.cancel")}>
             ×
           </button>
         </div>
       )}
 
-      <aside className={`panel ${sheetOpen ? "open" : ""}`} aria-label="Statystyki dojazdu">
-        <button className="grabber" onClick={() => setSheetOpen((o) => !o)} aria-label={sheetOpen ? "Zwiń panel" : "Rozwiń panel"}>
+      <aside className={`panel ${sheetOpen ? "open" : ""}`} aria-label={t("panel.label")}>
+        <button className="grabber" onClick={() => setSheetOpen((o) => !o)} aria-label={t(sheetOpen ? "panel.collapse" : "panel.expand")}>
           <span />
         </button>
 
         <header className="brand">
           <div>
-            <h1>Traffic Watch</h1>
-            <p>Dojazd do centrum Warszawy · {city?.city.centerName ?? "Rondo Dmowskiego"}</p>
+            <h1>{t("app.title")}</h1>
+            <p>{t("app.subtitle", { center: city?.city.centerName ?? "Rondo Dmowskiego" })}</p>
           </div>
-          {active && tab === "city" && (
-            <span className={`live ${isLive ? "on" : ""}`}>
-              <i />
-              {isLive ? `na żywo · ${fmtUpdated(active.t, TZ)}` : fmtUpdated(active.t, TZ)}
-            </span>
-          )}
+          <div className="brand-side">
+            <LangSwitch />
+            {active && tab === "city" && (
+              <span className={`live ${isLive ? "on" : ""}`}>
+                <i />
+                {isLive ? t("live.now", { time: fmt.time(active.t, TZ) }) : fmt.time(active.t, TZ)}
+              </span>
+            )}
+          </div>
         </header>
 
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === "city"} className={tab === "city" ? "active" : ""} onClick={() => setTab("city")}>
-            Miasto
+            {t("tabs.city")}
           </button>
           <button
             role="tab"
@@ -385,7 +391,7 @@ export function App() {
               setSheetOpen(true);
             }}
           >
-            Mój dojazd
+            {t("tabs.commute")}
           </button>
         </div>
 
@@ -410,15 +416,15 @@ export function App() {
             onSelectDepart={setSelectedDepart}
             data={commute}
             loading={commuteLoading}
-            error={commuteError}
+            error={commuteError ? errorText(i18n, commuteError.body, commuteError.status) : null}
           />
         ) : (
           <>
-            {error && !city && <div className="notice error">Nie udało się pobrać danych. Spróbuj odświeżyć stronę.</div>}
+            {error && !city && <div className="notice error">{t("city.loadError")}</div>}
 
-            <div className="segmented" role="radiogroup" aria-label="Widok">
+            <div className="segmented" role="radiogroup" aria-label={t("city.view")}>
               <button role="radio" aria-checked={mode === "live"} className={mode === "live" ? "active" : ""} onClick={() => setMode("live")}>
-                {isToday ? "Teraz" : "Wybrana godzina"}
+                {t(isToday ? "city.now" : "city.selectedTime")}
               </button>
               <button
                 role="radio"
@@ -426,7 +432,7 @@ export function App() {
                 className={mode === "daynight" ? "active" : ""}
                 onClick={() => setMode("daynight")}
               >
-                Dzień vs noc
+                {t("city.dayVsNight")}
               </button>
             </div>
 
@@ -434,66 +440,68 @@ export function App() {
               <div className="headline-label">
                 {selectedRoute ? (
                   <>
-                    <button className="chip-back" onClick={() => setSelected(null)} aria-label="Wróć do całego miasta">
+                    <button className="chip-back" onClick={() => setSelected(null)} aria-label={t("city.back")}>
                       ←
                     </button>
                     {selectedRoute.from} · {selectedRoute.name}
                   </>
-                ) : mode === "daynight" ? (
-                  "Średni dojazd w szczycie dnia"
                 ) : (
-                  "Średni czas dojazdu"
+                  t(mode === "daynight" ? "city.avgPeak" : "city.avg")
                 )}
               </div>
               {headlineSec ? (
                 <>
                   <div className="headline-value">
                     <strong>{minutes(headlineSec)}</strong>
-                    <span>min</span>
-                    <em className="badge">{headlineLevel.label}</em>
+                    <span>{t("common.minUnit")}</span>
+                    <em className="badge">{t(`levels.${headlineLevel.key}`)}</em>
                   </div>
                   {mode === "daynight" ? (
                     <div className="dn-compare">
                       <div>
-                        <small>Dzień · szczyt {active?.slot}</small>
+                        <small>{t("city.dayPeak", { slot: active?.slot ?? "" })}</small>
                         <i style={{ width: "100%", background: headlineLevel.color }} />
-                        <b>{minutes(headlineSec)} min</b>
+                        <b>{min(headlineSec)}</b>
                       </div>
                       <div>
-                        <small>Noc · {nightLabel}</small>
+                        <small>{t("city.nightLabel", { label: nightLabel })}</small>
                         <i style={{ width: `${nightSec ? Math.min(100, (nightSec / headlineSec) * 100) : 0}%`, background: "#1fa463" }} />
-                        <b>{nightSec ? `${minutes(nightSec)} min` : "b.d."}</b>
+                        <b>{nightSec ? min(nightSec) : t("common.na")}</b>
                       </div>
                       {nightSec ? (
                         <p className="muted small">
-                          W szczycie jedzie się {Math.max(0, minutes(headlineSec - nightSec))} min dłużej niż w nocy (
-                          {fmtPercent(headlineSec / nightSec)}).
+                          {t("city.peakVsNight", {
+                            min: Math.max(0, minutes(headlineSec - nightSec)),
+                            pct: fmtPercent(headlineSec / nightSec),
+                          })}
                         </p>
                       ) : null}
                     </div>
                   ) : (
                     <div className="headline-meta">
-                      <span>{fmtPercent(headlineRatio)} vs. pusta droga</span>
+                      <span>{t("city.vsEmpty", { pct: fmtPercent(headlineRatio) })}</span>
                       {vsTypical !== null && Math.abs(vsTypical) >= 60 ? (
                         <span>
-                          {vsTypical > 0 ? `${minutes(vsTypical)} min dłużej` : `${minutes(-vsTypical)} min krócej`} niż zwykle
+                          {vsTypical > 0
+                            ? t("city.longer", { min: minutes(vsTypical) })
+                            : t("city.shorter", { min: minutes(-vsTypical) })}
                         </span>
                       ) : vsTypical !== null ? (
-                        <span>tak jak zwykle</span>
+                        <span>{t("city.asUsual")}</span>
                       ) : null}
                     </div>
                   )}
                 </>
               ) : (
-                <div className="headline-empty">{day ? "Brak pomiarów dla tego dnia." : "Ładowanie…"}</div>
+                <div className="headline-empty">{t(day ? "city.noData" : "common.loading")}</div>
               )}
             </section>
 
-            <nav className="days" aria-label="Dzień">
+            <nav className="days" aria-label={t("days.label")}>
               {days.map((d) => (
                 <button key={d.date} className={d.date === date ? "active" : ""} onClick={() => setDate(d.date)}>
-                  <b>{d.label}</b>
-                  <small>{d.sub}</small>
+                  <b>{dayLabel(d)}</b>
+                  <small>{fmt.dayMonth(d.date)}</small>
                 </button>
               ))}
             </nav>
@@ -501,10 +509,10 @@ export function App() {
             {mode === "live" && (
               <section className="card">
                 <div className="card-head">
-                  <h2>{selectedRoute ? `Przebieg dnia: ${selectedRoute.from}` : "Przebieg dnia"}</h2>
+                  <h2>{selectedRoute ? t("city.timelineRoute", { from: selectedRoute.from }) : t("city.timeline")}</h2>
                   {cursorT && isToday && (
                     <button className="link" onClick={() => setCursorT(null)}>
-                      Na żywo
+                      {t("city.live")}
                     </button>
                   )}
                 </div>
@@ -514,16 +522,18 @@ export function App() {
                   freeFlow={series.freeFlow}
                   cursorT={active?.t ?? null}
                   onScrub={setCursorT}
-                  typicalLabel={`zwykle (${weekdayLong(dow)})`}
+                  typicalLabel={t("city.typical", { weekday: fmt.weekdayLong(dow) })}
                 />
-                <p className="hint">Przeciągnij po wykresie, aby zobaczyć ruch o danej godzinie.</p>
+                <p className="hint">{t("city.scrubHint")}</p>
               </section>
             )}
 
             <section className="card routes">
               <div className="card-head">
-                <h2>Wloty do miasta</h2>
-                <span className="muted">{mode === "daynight" ? `dzień ${active?.slot ?? ""} / ${nightLabel}` : `${rows.filter((r) => r.reading).length} tras`}</span>
+                <h2>{t("city.entries")}</h2>
+                <span className="muted">{mode === "daynight"
+                    ? t("city.dayNightHeader", { slot: active?.slot ?? "", night: nightLabel })
+                    : t("city.routes", { n: rows.filter((r) => r.reading).length })}</span>
               </div>
               <ul>
                 {rows.map(({ route, reading, typical, night }) => {
@@ -552,13 +562,20 @@ export function App() {
                           <i style={{ width: `${Math.max(4, fill)}%`, background: lv.color }} />
                         </span>
                         <span className="route-time">
-                          <b>{reading ? fmtMinutes(reading.duration) : "b.d."}</b>
+                          <b>{reading ? min(reading.duration) : t("common.na")}</b>
                           <small>
                             {!reading
-                              ? "brak danych"
+                              ? t("city.noReadings")
                               : mode === "daynight"
-                                ? `noc ${night ? `${minutes(night)} min` : "b.d."}`
-                                : `${fmtDelay(reading.duration - reading.freeFlow)}${typical ? ` · zwykle ${minutes(typical.duration)}` : ""}`}
+                                ? t("city.nightValue", { value: night ? min(night) : t("common.na") })
+                                : [
+                                    minutes(reading.duration - reading.freeFlow) <= 0
+                                      ? t("delay.none")
+                                      : t("delay.plus", { min: minutes(reading.duration - reading.freeFlow) }),
+                                    typical ? t("city.usually", { min: minutes(typical.duration) }) : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
                           </small>
                         </span>
                       </button>
@@ -571,16 +588,15 @@ export function App() {
         )}
 
         <footer className="foot">
-          Pomiar co 15 min (w nocy co godzinę) z 12 wlotów do Ronda Dmowskiego. Czasy przejazdu i prognozy: Amazon Location
-          Service (HERE). Mapa: OpenFreeMap, © OpenStreetMap.
+          {t("footer.about")}
           <br />
-          Autor:{" "}
+          {t("footer.author")}{" "}
           <a href="https://piotrzientara.pl/" target="_blank" rel="noopener">
             Piotr Zientara
           </a>{" "}
           ·{" "}
           <a href="https://github.com/Tuhaj/traffic-watch-2026" target="_blank" rel="noopener">
-            kod na GitHubie
+            {t("footer.code")}
           </a>
         </footer>
       </aside>

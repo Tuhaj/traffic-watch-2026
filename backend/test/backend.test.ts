@@ -59,5 +59,6 @@ describe("api", () => {
     expect((await req("/api/cities/warszawa/day", { date: "bad" })).statusCode).toBe(400);
     expect((await req("/api/cities/warszawa/profile", { dow: "9" })).statusCode).toBe(400);
     expect((await req("/api/cities", {}, "POST")).statusCode).toBe(405);
+    expect(JSON.parse((await req("/api/cities/nowhere")).body).code).toBe("not_found");
   });
 });

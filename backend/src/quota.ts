@@ -1,6 +1,7 @@
 import { ConditionalCheckFailedException, DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { createHash } from "node:crypto";
+import { type ApiErrorBody, type ErrorCode, ERROR_MESSAGES } from "../../shared/errors";
 import { localParts } from "../../shared/time";
 
 const TABLE = process.env.TABLE_NAME!;
@@ -10,9 +11,14 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 export class ApiError extends Error {
   constructor(
     readonly status: number,
-    message: string,
+    readonly code: ErrorCode,
+    readonly params?: Record<string, string | number>,
   ) {
-    super(message);
+    super(ERROR_MESSAGES[code].replace(/\{(\w+)\}/g, (_, k: string) => String(params?.[k] ?? "")));
+  }
+
+  get body(): ApiErrorBody {
+    return { code: this.code, message: this.message, ...(this.params ? { params: this.params } : {}) };
   }
 }
 
@@ -43,15 +49,15 @@ export async function consumeQuota(spec: QuotaSpec, ip: string, timeZone = "Euro
         ExpressionAttributeValues: { ":one": 1, ":max": max, ":ttl": ttl },
       }),
     );
-  for (const [sk, max, who] of [
-    [`${spec.name}#IP#${hash(ip)}`, spec.perIp, "dla Ciebie "],
-    [`${spec.name}#ALL`, spec.global, ""],
+  for (const [sk, max, code] of [
+    [`${spec.name}#IP#${hash(ip)}`, spec.perIp, "quota_user"],
+    [`${spec.name}#ALL`, spec.global, "quota_global"],
   ] as const) {
     try {
       await bump(sk, max);
     } catch (e) {
       if (e instanceof ConditionalCheckFailedException) {
-        throw new ApiError(429, `Dzienny limit ${who}został wyczerpany. Wróć jutro.`);
+        throw new ApiError(429, code);
       }
       throw e;
     }

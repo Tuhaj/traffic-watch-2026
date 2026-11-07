@@ -29,10 +29,10 @@ const QUOTAS: Record<TravelMode, { name: string; global: number; perIp: number }
 
 export function validate(city: CityDef, home: LngLat, work: LngLat) {
   if (haversine(city.center, home) > MAX_RADIUS_M || haversine(city.center, work) > MAX_RADIUS_M) {
-    throw new ApiError(400, `Oba punkty muszą leżeć w promieniu ${MAX_RADIUS_M / 1000} km od centrum.`);
+    throw new ApiError(400, "outside_radius", { km: MAX_RADIUS_M / 1000 });
   }
   if (haversine(home, work) < MIN_DISTANCE_M) {
-    throw new ApiError(400, "Dom i praca są zbyt blisko siebie.");
+    throw new ApiError(400, "too_close");
   }
 }
 
@@ -74,12 +74,7 @@ async function computeTimed(
   });
 
   if (!out.toWork.length || !out.toHome.length) {
-    throw new ApiError(
-      502,
-      mode === "transit"
-        ? "Nie udało się znaleźć połączenia komunikacją miejską. Spróbuj przesunąć punkty."
-        : "Nie udało się wyznaczyć trasy. Spróbuj przesunąć punkty bliżej drogi.",
-    );
+    throw new ApiError(502, mode === "transit" ? "transit_failed" : "route_failed");
   }
   return {
     mode,
@@ -98,7 +93,7 @@ async function computeTimed(
 async function computeBike(city: CityDef, home: LngLat, work: LngLat, dow: number): Promise<CommuteResponse> {
   const [toWork, toHome] = await Promise.all([bikeOption(home, work), bikeOption(work, home)]).catch((e) => {
     console.error(JSON.stringify({ msg: "bike route failed", error: String(e) }));
-    throw new ApiError(502, "Nie udało się wyznaczyć trasy rowerowej. Spróbuj ponownie za chwilę.");
+    throw new ApiError(502, "bike_failed");
   });
   return {
     mode: "bike",
@@ -127,7 +122,7 @@ export async function getCommute(
   validate(city, home, work);
   // Bike durations do not depend on the weekday, so one cache entry serves all days.
   const dayKey = mode === "bike" ? "any" : String(dow);
-  const key = { pk: `COMMUTE#${hash(`${city.id}|${mode}|${home.join(",")}|${work.join(",")}|${dayKey}`)}`, sk: "v3" };
+  const key = { pk: `COMMUTE#${hash(`${city.id}|${mode}|${home.join(",")}|${work.join(",")}|${dayKey}`)}`, sk: "v4" };
   const cached = await ddb.send(new GetCommand({ TableName: TABLE, Key: key }));
   if (cached.Item && Number(cached.Item.ttl) > Date.now() / 1000) {
     const res = JSON.parse(String(cached.Item.data)) as CommuteResponse;

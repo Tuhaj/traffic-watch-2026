@@ -13,6 +13,17 @@ To przepisana wersja projektu z 2015 roku (Ember 1.8 + Rails 4.1 + Bing Maps).
 - **Dzień vs noc:** najgorszy moment dnia (06:00-20:00) zestawiony z najspokojniejszym pomiarem nocnym, dla miasta i dla każdego wlotu.
 - **Mój dojazd:** dom i praca wpisane jako adres lub nazwa miejsca (z podpowiedziami) albo zaznaczone na mapie (można przeciągać). Do wyboru samochód, komunikacja miejska i rower. Dla samochodu i komunikacji backend liczy podróż dla 26 godzin wyjazdu (rano 05:30-10:30, popołudnie 14:00-20:00, noc 03:00) na wybrany dzień tygodnia. Przełącznik „Do pracy / Powrót” pokazuje najlepszą godzinę, klikalne słupki dla każdej godziny i różnicę dzień/noc. Po kliknięciu słupka widać szczegóły (dla komunikacji linie, przystanki i godziny), a mapa rysuje tę trasę.
 
+## Języki
+
+Interfejs jest po polsku, angielsku i ukraińsku (małe flagi PL / EN / UA w nagłówku). Język wybiera się z `?lang=pl|en|uk` (link do udostępnienia), potem z zapamiętanego wyboru, potem z języka przeglądarki.
+
+- Słowniki: `web/src/i18n/{pl,en,uk}.ts`. Polski jest źródłem; TypeScript nie przepuści słownika bez któregoś klucza, a testy pilnują pustych tłumaczeń, zgodności placeholderów i braku długich myślników.
+- Liczba mnoga przez `Intl.PluralRules` (formy one/few/many/other), daty, dni tygodnia i liczby przez `Intl` w locale `pl-PL`, `en-GB`, `uk-UA`.
+- Backend zwraca kody błędów (`{code, message, params}`, `shared/errors.ts`) i surowe typy pojazdów (`LightRail`, `Bus`), a tłumaczy je front.
+- Nazwy na mapie bazowej są w wybranym języku (`name:en`, `name:uk` z OpenStreetMap), z nazwą lokalną jako zapasową. Adresy i nazwy przystanków zostają po polsku, tak jak na tablicach.
+
+Nowy język: skopiuj `en.ts`, przetłumacz, dodaj go do `LANGS` w `web/src/i18n/index.tsx` i flagę w `Flags.tsx`.
+
 ## Skąd dane
 
 Sprawdziliśmy publiczne źródła Warszawy. ZDM publikuje natężenie ruchu z systemu APR (liczba pojazdów, raport w przeglądarce, bez API i bez dróg ekspresowych), a api.um.warszawa.pl / dane.um.warszawa.pl udostępniają głównie dane komunikacji miejskiej. Nie ma publicznych czasów przejazdu, więc zostały crony.
@@ -84,7 +95,7 @@ Wymagane: Node 22, pnpm.
 
 ```bash
 pnpm install
-pnpm test        # testy backendu (vitest)
+pnpm test        # testy backendu i i18n (vitest)
 pnpm typecheck
 pnpm --filter @traffic-watch/web dev   # UI z proxy /api do https://traffic.isy.sh
 ```

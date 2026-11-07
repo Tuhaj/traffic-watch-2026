@@ -21,25 +21,6 @@ export async function carOption(from: LngLat, to: LngLat, at: Date, tz: string):
   };
 }
 
-const VEHICLE_LABEL: Record<string, string> = {
-  Bus: "Autobus",
-  BusRapid: "Autobus",
-  Intercity: "Pociąg",
-  LightRail: "Tramwaj",
-  Monorail: "Kolej",
-  RegionalTrain: "Pociąg",
-  CityTrain: "SKM",
-  Subway: "Metro",
-  Train: "Pociąg",
-  Ferry: "Prom",
-  Aerial: "Kolejka",
-  Inclined: "Kolejka",
-};
-
-export function vehicleLabel(mode: string | undefined): string {
-  return (mode && VEHICLE_LABEL[mode]) ?? "Transport";
-}
-
 export function transitLeg(l: RouteLeg, tz: string): CommuteLeg | null {
   const geometry = simplify((l.Geometry?.LineString ?? []) as LngLat[], 0.00008);
   const t = l.TransitLegDetails;
@@ -52,7 +33,7 @@ export function transitLeg(l: RouteLeg, tz: string): CommuteLeg | null {
       duration: t.Summary?.Overview?.Duration ?? (Number.isFinite(arrive - depart) ? (arrive - depart) / 1000 : 0),
       distance: t.Summary?.Overview?.Distance ?? 0,
       geometry,
-      vehicle: vehicleLabel(t.Transport?.Mode),
+      vehicle: t.Transport?.Mode ?? "Transit",
       line: t.Transport?.ShortRouteName ?? t.Transport?.RouteName,
       headsign: t.Transport?.Headsign,
       color: t.Transport?.Color,
@@ -68,7 +49,7 @@ export function transitLeg(l: RouteLeg, tz: string): CommuteLeg | null {
   const v = l.VehicleLegDetails;
   if (v) return { kind: "drive", duration: v.Summary?.Overview?.Duration ?? 0, distance: v.Summary?.Overview?.Distance ?? 0, geometry };
   const f = l.FerryLegDetails;
-  if (f) return { kind: "transit", vehicle: "Prom", duration: f.Summary?.Overview?.Duration ?? 0, distance: f.Summary?.Overview?.Distance ?? 0, geometry };
+  if (f) return { kind: "transit", vehicle: "Ferry", duration: f.Summary?.Overview?.Duration ?? 0, distance: f.Summary?.Overview?.Distance ?? 0, geometry };
   return null;
 }
 

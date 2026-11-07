@@ -1,5 +1,6 @@
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import type { LngLat, PlaceDetails, PlaceSuggestion } from "../../../shared/types";
+import { errorText, useI18n } from "../i18n";
 
 interface Props {
   kind: "home" | "work";
@@ -14,13 +15,15 @@ interface Props {
 const DEBOUNCE_MS = 280;
 
 export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelect }: Props) {
+  const i18n = useI18n();
+  const { t } = i18n;
   const listId = useId();
   const [text, setText] = useState(value ?? "");
   const [editing, setEditing] = useState(false);
   const [items, setItems] = useState<PlaceSuggestion[]>([]);
   const [active, setActive] = useState(-1);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ body: unknown; status: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
   // Reflect points set elsewhere (map click, drag, clear) while the user is not typing.
@@ -39,14 +42,14 @@ export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelec
     const t = setTimeout(() => {
       fetch(`/api/places/suggest?q=${encodeURIComponent(q)}`, { signal: ctrl.signal })
         .then(async (res) => {
-          const body = await res.json();
-          if (!res.ok) throw new Error(body.message ?? `Błąd ${res.status}`);
+          const body = await res.json().catch(() => null);
+          if (!res.ok) throw { body, status: res.status };
           setItems(body as PlaceSuggestion[]);
           setActive(-1);
           setError(null);
         })
-        .catch((e: Error) => {
-          if (!ctrl.signal.aborted) setError(e.message);
+        .catch((e: { body?: unknown; status?: number }) => {
+          if (!ctrl.signal.aborted) setError({ body: e?.body ?? null, status: e?.status ?? 0 });
         });
     }, DEBOUNCE_MS);
     return () => {
@@ -61,15 +64,16 @@ export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelec
     setError(null);
     try {
       const res = await fetch(`/api/places/detail?id=${encodeURIComponent(s.id)}`);
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.message ?? `Błąd ${res.status}`);
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw { body, status: res.status };
       const place = body as PlaceDetails;
       setEditing(false);
       setText(place.title);
       onSelect(place.position, place.title);
       input.current?.blur();
     } catch (e) {
-      setError((e as Error).message);
+      const err = e as { body?: unknown; status?: number };
+      setError({ body: err?.body ?? null, status: err?.status ?? 0 });
     } finally {
       setBusy(false);
     }
@@ -97,7 +101,7 @@ export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelec
   return (
     <div className={`address ${kind} ${picking ? "picking" : ""}`}>
       <span className="pin" aria-hidden>
-        {kind === "home" ? "D" : "P"}
+        {t(kind === "home" ? "commute.homeInitial" : "commute.workInitial")}
       </span>
       <div className="address-field">
         <label htmlFor={`${listId}-input`}>{label}</label>
@@ -108,7 +112,7 @@ export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelec
           inputMode="search"
           autoComplete="off"
           spellCheck={false}
-          placeholder={picking ? "Kliknij na mapie albo wpisz adres" : "Wpisz adres lub miejsce"}
+          placeholder={t(picking ? "address.placeholderPicking" : "address.placeholder")}
           value={text}
           role="combobox"
           aria-expanded={open}
@@ -129,7 +133,7 @@ export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelec
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKey}
         />
-        {busy && <span className="address-spinner" aria-label="Szukam" />}
+        {busy && <span className="address-spinner" aria-label={t("address.searching")} />}
         {open && (
           <ul className="suggestions" id={`${listId}-list`} role="listbox">
             {items.map((s, i) => (
@@ -151,15 +155,15 @@ export function AddressInput({ kind, label, value, picking, onPickOnMap, onSelec
             ))}
           </ul>
         )}
-        {error && <p className="address-error">{error}</p>}
+        {error && <p className="address-error">{errorText(i18n, error.body, error.status)}</p>}
       </div>
       <button
         type="button"
         className={`map-pick ${picking ? "active" : ""}`}
         onClick={onPickOnMap}
         aria-pressed={picking}
-        title="Wskaż na mapie"
-        aria-label={`Wskaż ${kind === "home" ? "dom" : "pracę"} na mapie`}
+        title={t("address.pickOnMap")}
+        aria-label={t(kind === "home" ? "address.pickHome" : "address.pickWork")}
       >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
           <circle cx="12" cy="12" r="3.2" fill="currentColor" />

@@ -113,7 +113,7 @@ export function viewerIp(event: APIGatewayProxyEventV2): string {
 }
 
 export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
-  if (event.requestContext.http.method !== "GET") return json(405, { message: "Method not allowed" });
+  if (event.requestContext.http.method !== "GET") return json(405, new ApiError(405, "method_not_allowed").body);
   const path = event.rawPath.replace(/\/+$/, "");
   const q = event.queryStringParameters ?? {};
 
@@ -125,13 +125,13 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
 
     if (path === "/api/places/suggest") {
       const city = findCity(q.city ?? "warszawa");
-      if (!city) return json(404, { message: "Not found" });
+      if (!city) return json(404, new ApiError(404, "not_found").body);
       return json(200, await suggestPlaces(city, q.q ?? "", viewerIp(event))); // SingleUse: never cached
     }
 
     if (path === "/api/places/detail") {
       const city = findCity(q.city ?? "warszawa");
-      if (!city || !q.id) return json(400, { message: "id is required" });
+      if (!city || !q.id) return json(400, new ApiError(400, "bad_request", { detail: "id is required" }).body);
       return json(200, await getPlace(city, q.id, viewerIp(event)), 7 * 86400);
     }
 
@@ -140,16 +140,16 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
       const home = parseLngLat(q.home);
       const work = parseLngLat(q.work);
       const dow = Number(q.dow ?? 1);
-      if (!city || !home || !work) return json(400, { message: "home and work must be lng,lat" });
-      if (!Number.isInteger(dow) || dow < 1 || dow > 7) return json(400, { message: "dow must be 1..7" });
+      if (!city || !home || !work) return json(400, new ApiError(400, "bad_request", { detail: "home and work must be lng,lat" }).body);
+      if (!Number.isInteger(dow) || dow < 1 || dow > 7) return json(400, new ApiError(400, "bad_request", { detail: "dow must be 1..7" }).body);
       const mode = (q.mode ?? "car") as TravelMode;
-      if (!MODES.includes(mode)) return json(400, { message: "mode must be car, transit or bike" });
+      if (!MODES.includes(mode)) return json(400, new ApiError(400, "bad_request", { detail: "mode must be car, transit or bike" }).body);
       return json(200, await getCommute(city, home, work, dow, viewerIp(event), mode), 21600);
     }
 
     const m = path.match(/^\/api\/cities\/([a-z0-9-]+)(?:\/(day|profile))?$/);
     const city = m ? findCity(m[1]!) : undefined;
-    if (!m || !city) return json(404, { message: "Not found" });
+    if (!m || !city) return json(404, new ApiError(404, "not_found").body);
 
     switch (m[2]) {
       case undefined:
@@ -157,19 +157,19 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
       case "day": {
         const today = localParts(new Date(), city.timezone).date;
         const date = q.date ?? today;
-        if (!isIsoDate(date)) return json(400, { message: "date must be YYYY-MM-DD" });
+        if (!isIsoDate(date)) return json(400, new ApiError(400, "bad_request", { detail: "date must be YYYY-MM-DD" }).body);
         return json(200, await getDay(city, date), date < today ? 86400 : 60);
       }
       case "profile": {
         const dow = Number(q.dow);
-        if (!Number.isInteger(dow) || dow < 1 || dow > 7) return json(400, { message: "dow must be 1..7" });
+        if (!Number.isInteger(dow) || dow < 1 || dow > 7) return json(400, new ApiError(400, "bad_request", { detail: "dow must be 1..7" }).body);
         return json(200, await getProfile(city, dow), 900);
       }
     }
-    return json(404, { message: "Not found" });
+    return json(404, new ApiError(404, "not_found").body);
   } catch (e) {
-    if (e instanceof ApiError) return json(e.status, { message: e.message });
+    if (e instanceof ApiError) return json(e.status, e.body);
     console.error(e);
-    return json(500, { message: "Internal error" });
+    return json(500, new ApiError(500, "internal").body);
   }
 }

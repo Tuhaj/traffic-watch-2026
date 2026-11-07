@@ -36,7 +36,12 @@ describe("geo", () => {
 describe("commute", () => {
   it("rejects points outside the metro area or too close together", () => {
     expect(() => validate(city, [19.94, 50.06], [21.0, 52.23])).toThrow(ApiError);
-    expect(() => validate(city, [21.0, 52.23], [21.001, 52.2301])).toThrow(/blisko/);
+    expect(() => validate(city, [21.0, 52.23], [21.001, 52.2301])).toThrow(/too close/);
+    try {
+      validate(city, [19.94, 50.06], [21.0, 52.23]);
+    } catch (e) {
+      expect((e as ApiError).body).toEqual({ code: "outside_radius", message: "Both points must be within 60 km of the centre", params: { km: 60 } });
+    }
     expect(() => validate(city, [21.023, 52.08], [20.985, 52.235])).not.toThrow();
   });
   it("picks the fastest departure", () => {
@@ -82,7 +87,7 @@ describe("places", async () => {
 });
 
 describe("modes", async () => {
-  const { decodePolyline6, mergeWalks, transitLeg, vehicleLabel } = await import("../src/modes");
+  const { decodePolyline6, mergeWalks, transitLeg } = await import("../src/modes");
   it("merges consecutive walking legs", () => {
     const walk = (d: number) => ({ kind: "walk" as const, duration: d, distance: d, geometry: [[21, 52]] as [number, number][] });
     const tram = { kind: "transit" as const, duration: 600, distance: 3000, geometry: [] };
@@ -113,8 +118,6 @@ describe("modes", async () => {
       } as never,
       "Europe/Warsaw",
     );
-    expect(leg).toMatchObject({ kind: "transit", vehicle: "Tramwaj", line: "10", from: "Dworkowa", departs: "07:31", arrives: "07:51", duration: 1200 });
-    expect(vehicleLabel("Subway")).toBe("Metro");
-    expect(vehicleLabel(undefined)).toBe("Transport");
+    expect(leg).toMatchObject({ kind: "transit", vehicle: "LightRail", line: "10", from: "Dworkowa", departs: "07:31", arrives: "07:51", duration: 1200 });
   });
 });

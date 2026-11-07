@@ -1,4 +1,5 @@
 import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n";
 
 export interface SeriesPoint {
   /** minutes since local midnight */
@@ -35,6 +36,7 @@ function path(points: SeriesPoint[], sx: (x: number) => number, sy: (y: number) 
 }
 
 export function Timeline({ actual, typical, freeFlow, cursorT, onScrub, typicalLabel }: Props) {
+  const { t } = useI18n();
   const wrap = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(360);
   useEffect(() => {
@@ -94,7 +96,7 @@ export function Timeline({ actual, typical, freeFlow, cursorT, onScrub, typicalL
         height={H}
         role="slider"
         tabIndex={0}
-        aria-label="Godzina"
+        aria-label={t("timeline.label")}
         aria-valuemin={0}
         aria-valuemax={1440}
         aria-valuenow={cursor?.x ?? 0}
@@ -140,17 +142,17 @@ export function Timeline({ actual, typical, freeFlow, cursorT, onScrub, typicalL
       </svg>
       <div className="legend">
         <span>
-          <i className="sw actual" /> wybrany dzień
+          <i className="sw actual" /> {t("timeline.selectedDay")}
         </span>
         <span>
           <i className="sw typical" /> {typicalLabel}
         </span>
         {freeFlow ? (
           <span>
-            <i className="sw freeflow" /> bez ruchu
+            <i className="sw freeflow" /> {t("timeline.freeFlow")}
           </span>
         ) : null}
-        <span className="unit">min</span>
+        <span className="unit">{t("common.minUnit")}</span>
       </div>
     </div>
   );

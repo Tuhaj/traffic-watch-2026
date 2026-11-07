@@ -1,6 +1,7 @@
 import { levelFor } from "../../../shared/congestion";
 import type { CommuteOption } from "../../../shared/types";
 import { minutes } from "../format";
+import { useI18n } from "../i18n";
 
 interface Props {
   options: CommuteOption[];
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function DepartureBars({ options, baseline, label, selected, best, onSelect }: Props) {
+  const { t } = useI18n();
   if (!options.length) return null;
   const max = Math.max(...options.map((o) => o.duration));
   return (
@@ -26,7 +28,7 @@ export function DepartureBars({ options, baseline, label, selected, best, onSele
               type="button"
               role="radio"
               aria-checked={o.depart === selected}
-              aria-label={`Wyjazd ${o.depart}, ${minutes(o.duration)} min${o.depart === best ? ", najszybciej" : ""}`}
+              aria-label={t(o.depart === best ? "commute.barAriaBest" : "commute.barAria", { time: o.depart, min: minutes(o.duration) })}
               className={`bar ${o.depart === selected ? "selected" : ""} ${o.depart === best ? "best" : ""}`}
               onClick={() => onSelect(o.depart)}
             >

@@ -49,7 +49,7 @@ export function toSuggestion(item: SuggestResultItem): PlaceSuggestion | null {
 export async function suggestPlaces(city: CityDef, query: string, ip: string): Promise<PlaceSuggestion[]> {
   const q = query.trim();
   if (q.length < MIN_QUERY) return [];
-  if (q.length > MAX_QUERY) throw new ApiError(400, "Za długie zapytanie.");
+  if (q.length > MAX_QUERY) throw new ApiError(400, "query_too_long");
   await consumeQuota(SUGGEST_QUOTA, ip, city.timezone);
   const res = await places.send(
     new SuggestCommand({
@@ -75,14 +75,14 @@ export async function suggestPlaces(city: CityDef, query: string, ip: string): P
 
 /** Coordinates of a chosen suggestion. Requested with IntendedUse=Storage, because the browser keeps the point. */
 export async function getPlace(city: CityDef, id: string, ip: string): Promise<PlaceDetails> {
-  if (!/^[A-Za-z0-9_\-=]{20,1024}$/.test(id)) throw new ApiError(400, "Nieprawidłowy identyfikator miejsca.");
+  if (!/^[A-Za-z0-9_\-=]{20,1024}$/.test(id)) throw new ApiError(400, "bad_place_id");
   await consumeQuota(PLACE_QUOTA, ip, city.timezone);
   const res = await places.send(new GetPlaceCommand({ PlaceId: id, Language: "pl", IntendedUse: "Storage" }));
   const pos = res.Position;
-  if (!pos || pos.length !== 2) throw new ApiError(404, "Nie znaleziono miejsca.");
+  if (!pos || pos.length !== 2) throw new ApiError(404, "place_not_found");
   const position: [number, number] = [pos[0]!, pos[1]!];
   if (haversine(city.center, position) > MAX_RADIUS_M) {
-    throw new ApiError(400, `To miejsce leży dalej niż ${MAX_RADIUS_M / 1000} km od centrum.`);
+    throw new ApiError(400, "place_outside", { km: MAX_RADIUS_M / 1000 });
   }
   const label = shortLabel(res.Address?.Label ?? res.Title ?? "");
   const title = res.PlaceType === "PointOfInterest" && res.Title && !label.startsWith(res.Title) ? `${res.Title}, ${label}` : label;

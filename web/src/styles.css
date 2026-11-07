@@ -162,7 +162,8 @@ button:focus-visible, svg:focus-visible { outline: 2px solid var(--accent); outl
 .work .pin, .map-pin.work, .address.work .pin { background: #2f6fed; }
 .map-pin { width: 32px; height: 32px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: grid; place-items: center;
   color: #fff; font: 700 13px/1 system-ui, sans-serif; border: 2.5px solid #fff; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); cursor: grab; }
-.map-pin span { transform: rotate(45deg); }
+.map-pin-root { width: 32px; height: 38px; display: grid; place-items: start center; cursor: grab; }
+.map-pin span { display: block; transform: rotate(45deg); line-height: 1; }
 .pick-hint { position: absolute; z-index: 3; top: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
   padding: 9px 10px 9px 16px; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 600; box-shadow: var(--shadow); }
 .pick-hint button { width: 22px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--bg) 20%, transparent); color: var(--bg); }
@@ -224,6 +225,14 @@ button:focus-visible, svg:focus-visible { outline: 2px solid var(--accent); outl
 .leg small { display: block; font-size: 11.5px; color: var(--muted); }
 .line-badge { min-width: 34px; height: 24px; padding: 0 6px; border-radius: 6px; display: grid; place-items: center; font-size: 12.5px; font-weight: 750; }
 .leg-dot { justify-self: center; width: 10px; height: 10px; border-radius: 50%; border: 2.5px dotted var(--muted); }
+
+.brand-side { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.lang-switch { display: inline-flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--hover); }
+.lang-switch button { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--muted); opacity: 0.75; }
+.lang-switch button:hover { opacity: 1; color: var(--text); }
+.lang-switch button.active { background: var(--card); color: var(--text); opacity: 1; box-shadow: 0 1px 2px rgba(16, 24, 40, 0.12); }
+.lang-switch svg { width: 16px; height: 10px; border-radius: 2px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.25); display: block; }
 
 /* Mobile: bottom sheet */
 @media (max-width: 899px) {

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { levelFor } from "../../../shared/congestion";
 import type { CommuteLeg, LngLat, RouteReading, RouteState } from "../../../shared/types";
 import { minutes } from "../format";
+import { type Lang, useI18n } from "../i18n";
 
 interface Props {
   center: LngLat;
@@ -40,14 +41,28 @@ function legsGeoJson(legs: CommuteLeg[] | null, color: string) {
   };
 }
 
+/**
+ * Shows basemap place names in the UI language (OpenMapTiles name:xx), falling back to the local name.
+ * Only symbol layers whose label is built from a name field are touched.
+ */
+function localizeBasemap(m: MlMap, lang: Lang) {
+  for (const layer of m.getStyle().layers ?? []) {
+    if (layer.type !== "symbol" || layer.id.startsWith("origin")) continue;
+    const field = m.getLayoutProperty(layer.id, "text-field");
+    if (!field || !JSON.stringify(field).includes("name")) continue;
+    m.setLayoutProperty(layer.id, "text-field", ["coalesce", ["get", `name:${lang}`], ["get", "name"]]);
+  }
+}
+
+/** MapLibre owns the root element's transform, so the rotated teardrop lives in a child. */
 function pinElement(kind: "home" | "work") {
-  const el = document.createElement("div");
-  el.className = `map-pin ${kind}`;
-  const label = document.createElement("span");
-  label.textContent = kind === "home" ? "D" : "P";
-  el.appendChild(label);
-  el.setAttribute("aria-label", kind === "home" ? "Dom" : "Praca");
-  return el;
+  const root = document.createElement("div");
+  root.className = "map-pin-root";
+  const shape = document.createElement("div");
+  shape.className = `map-pin ${kind}`;
+  shape.appendChild(document.createElement("span"));
+  root.appendChild(shape);
+  return root;
 }
 
 const STYLE = {
@@ -74,7 +89,7 @@ function routesGeoJson(routes: RouteState[], readings: Props["readings"], focuse
   };
 }
 
-function originsGeoJson(routes: RouteState[], readings: Props["readings"]) {
+function originsGeoJson(routes: RouteState[], readings: Props["readings"], minLabel: (n: number) => string) {
   return {
     type: "FeatureCollection" as const,
     features: routes.map((r) => {
@@ -83,7 +98,7 @@ function originsGeoJson(routes: RouteState[], readings: Props["readings"]) {
         type: "Feature" as const,
         properties: {
           id: r.id,
-          label: reading ? `${r.from} · ${minutes(reading.duration)} min` : r.from,
+          label: reading ? `${r.from} · ${minLabel(minutes(reading.duration))}` : r.from,
           color: reading ? levelFor(reading.duration / reading.freeFlow).color : NO_DATA,
         },
         geometry: { type: "Point" as const, coordinates: r.origin },
@@ -101,11 +116,13 @@ function padding() {
 }
 
 export function MapView(props: Props) {
+  const { lang, t } = useI18n();
+  const minLabel = (n: number) => t("common.minutes", { n });
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const [ready, setReady] = useState(0);
-  const latest = useRef(props);
-  latest.current = props;
+  const latest = useRef({ ...props, lang, minLabel });
+  latest.current = { ...props, lang, minLabel };
   const fitted = useRef(false);
   const pins = useRef<Partial<Record<"home" | "work", maplibregl.Marker>>>({});
 
@@ -127,7 +144,8 @@ export function MapView(props: Props) {
     m.on("style.load", () => {
       const p = latest.current;
       m.addSource("routes", { type: "geojson", data: routesGeoJson(p.routes, p.readings, p.focused) });
-      m.addSource("origins", { type: "geojson", data: originsGeoJson(p.routes, p.readings) });
+      m.addSource("origins", { type: "geojson", data: originsGeoJson(p.routes, p.readings, p.minLabel) });
+      localizeBasemap(m, p.lang);
       m.addSource("center", {
         type: "geojson",
         data: { type: "Feature", properties: { label: p.centerName }, geometry: { type: "Point", coordinates: p.center } },
@@ -279,8 +297,14 @@ export function MapView(props: Props) {
     const m = map.current;
     if (!m || !ready) return;
     (m.getSource("routes") as GeoJSONSource | undefined)?.setData(routesGeoJson(props.routes, props.readings, props.focused));
-    (m.getSource("origins") as GeoJSONSource | undefined)?.setData(originsGeoJson(props.routes, props.readings));
-  }, [ready, props.routes, props.readings, props.focused]);
+    (m.getSource("origins") as GeoJSONSource | undefined)?.setData(originsGeoJson(props.routes, props.readings, minLabel));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, props.routes, props.readings, props.focused, lang]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (m && ready) localizeBasemap(m, lang);
+  }, [ready, lang]);
 
   // Mode: show either the city corridors or the personal commute.
   useEffect(() => {
@@ -328,16 +352,25 @@ export function MapView(props: Props) {
         continue;
       }
       if (!marker) {
-        marker = new maplibregl.Marker({ element: pinElement(kind), draggable: true, anchor: "bottom" });
+        marker = new maplibregl.Marker({
+          element: pinElement(kind),
+          draggable: true,
+          anchor: "bottom",
+        });
         marker.on("dragend", () => {
           const ll = marker!.getLngLat();
           latest.current.onPoint(kind, [ll.lng, ll.lat]);
         });
         pins.current[kind] = marker;
       }
+      // Label and initial follow the UI language.
+      const el = marker.getElement();
+      el.setAttribute("aria-label", t(kind === "home" ? "commute.home" : "commute.work"));
+      el.querySelector(".map-pin span")!.textContent = t(kind === "home" ? "commute.homeInitial" : "commute.workInitial");
       marker.setLngLat(pos).addTo(m);
     }
-  }, [props.home, props.work, props.mode, ready]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.home, props.work, props.mode, ready, lang]);
 
-  return <div ref={el} className="map" role="region" aria-label="Mapa tras dojazdu do centrum" />;
+  return <div ref={el} className="map" role="region" aria-label={t("map.label")} />;
 }
