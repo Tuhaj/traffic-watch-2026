@@ -62,3 +62,31 @@ describe("api", () => {
     expect(JSON.parse((await req("/api/cities/nowhere")).body).code).toBe("not_found");
   });
 });
+
+describe("cookieless stats", async () => {
+  const { counterKeys, isBot, referrerHost } = await import("../src/stats");
+  it("keeps only the referring host and folds Facebook mirrors", () => {
+    expect(referrerHost("https://l.facebook.com/l.php?u=abc")).toBe("facebook.com");
+    expect(referrerHost("https://www.google.com/search?q=x")).toBe("google.com");
+    expect(referrerHost("https://traffic.isy.sh/faq/")).toBe("");
+    expect(referrerHost(undefined)).toBe("direct");
+  });
+  it("builds counters only for known events and paths", () => {
+    expect(counterKeys({ event: "pageview", path: "/", referrer: "", lang: "uk", device: "mobile" }, "PL")).toEqual([
+      "ev#pageview",
+      "pv#/",
+      "ref#direct",
+      "lang#uk",
+      "dev#mobile",
+      "country#PL",
+    ]);
+    expect(counterKeys({ event: "pageview", path: "/wp-admin", lang: "xx" })).toEqual(["ev#pageview", "pv#other", "ref#direct"]);
+    expect(counterKeys({ event: "commute", path: "/", value: "Transit" })).toEqual(["ev#commute:transit"]);
+    expect(counterKeys({ event: "drop table", path: "/" })).toEqual([]);
+  });
+  it("ignores bots and empty user agents", () => {
+    expect(isBot("facebookexternalhit/1.1")).toBe(true);
+    expect(isBot(undefined)).toBe(true);
+    expect(isBot("Mozilla/5.0 (Macintosh) Safari/605.1.15")).toBe(false);
+  });
+});

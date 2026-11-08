@@ -24,6 +24,24 @@ Interfejs jest po polsku, angielsku i ukraińsku (małe flagi PL / EN / UA w nag
 
 Nowy język: skopiuj `en.ts`, przetłumacz, dodaj go do `LANGS` w `web/src/i18n/index.tsx` i flagę w `Flags.tsx`.
 
+## Prywatność i statystyki (bez ciasteczek)
+
+Strona nie używa ciasteczek ani identyfikatorów w przeglądarce, więc nie ma banera zgody. `localStorage` trzyma tylko ustawienia (język, środek transportu, punkty dom/praca).
+
+Ruch liczy własny beacon `GET /api/hit` (`backend/src/stats.ts`, `web/src/track.ts`):
+
+- zbiorcze dzienne liczniki w DynamoDB: odsłony stron, zdarzenia (wyszukanie dojazdu wg trybu, zmiana języka), domena odsyłająca, język, mobile/desktop, kraj;
+- unikalni odwiedzający dziennie: `sha256(sekret, dzień, IP, user agent)`, który zmienia się co dzień i wygasa po 2 dniach; surowe IP nie jest zapisywane;
+- boty są pomijane, a Do Not Track i Global Privacy Control wyłączają wysyłkę.
+
+Podgląd: `AWS_PROFILE=private pnpm stats [dni]`.
+
+## SEO i udostępnianie
+
+- Meta tagi Open Graph i Twitter, canonical, `hreflang` (PL/EN/UA), JSON-LD `WebApplication` w `web/index.html`.
+- FAQ jako statyczne strony w trzech językach (`/faq/`, `/faq/en/`, `/faq/uk/`) z JSON-LD `FAQPage`, generowane przez `web/static/build.ts` razem z `sitemap.xml`, `robots.txt` i `manifest.webmanifest`.
+- Obrazek OG (`web/public/og.png`, 1200×630) to zrzut aplikacji. Odświeżenie: `UDD=$(mktemp -d) node web/scripts/screenshot.mjs "https://traffic.isy.sh/?lang=pl" web/public/og.png 1200 630 light 10000`.
+
 ## Skąd dane
 
 Sprawdziliśmy publiczne źródła Warszawy. ZDM publikuje natężenie ruchu z systemu APR (liczba pojazdów, raport w przeglądarce, bez API i bez dróg ekspresowych), a api.um.warszawa.pl / dane.um.warszawa.pl udostępniają głównie dane komunikacji miejskiej. Nie ma publicznych czasów przejazdu, więc zostały crony.
@@ -109,6 +127,12 @@ AWS_PROFILE=private pnpm run deploy
 Stack `TrafficWatchEdge` (us-east-1) tworzy strefę `traffic.isy.sh` i certyfikat; strefa `isy.sh` deleguje do niej rekordem NS. Stack `TrafficWatch` (eu-central-1) zawiera resztę. Pierwszy raz: `cdk bootstrap` w obu regionach.
 
 Nowy wlot do miasta dodaje się w `shared/cities.ts`; collector podejmie go przy następnym uruchomieniu.
+
+## Licencja i współpraca
+
+MIT, zobacz `LICENSE`. Propozycje zmian mile widziane, zobacz `CONTRIBUTING.md`.
+
+Pierwsza wersja (2014) powstała przy wsparciu mentorów z Rebased: Bernarda Potockiego, Krzysztofa Modrasa i Tomasza Stachewicza.
 
 ## Autor
 

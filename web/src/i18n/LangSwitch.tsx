@@ -1,4 +1,5 @@
 import { Flag } from "./Flags";
+import { track } from "../track";
 import { LANGS, useI18n } from "./index";
 
 export function LangSwitch() {
@@ -13,7 +14,10 @@ export function LangSwitch() {
           className={l.code === lang ? "active" : ""}
           aria-pressed={l.code === lang}
           title={l.name}
-          onClick={() => setLang(l.code)}
+          onClick={() => {
+            if (l.code !== lang) track("lang", l.code);
+            setLang(l.code);
+          }}
         >
           <Flag lang={l.code} />
           <span>{l.label}</span>

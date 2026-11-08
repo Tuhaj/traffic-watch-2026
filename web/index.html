@@ -3,15 +3,66 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Ile dziś jedzie się do centrum Warszawy? Czasy dojazdu z 12 wlotów do miasta, mierzone co 15 minut." />
+    <title>Traffic Watch · Warszawa</title>
+    <meta name="description" content="Ile dziś jedzie się do centrum Warszawy? Czasy dojazdu z 12 wlotów do miasta co 15 minut, porównanie dnia i nocy oraz najlepsza godzina wyjazdu z domu do pracy samochodem, komunikacją lub rowerem." />
+    <meta name="author" content="Piotr Zientara" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://traffic.isy.sh/" />
+    <link rel="alternate" hreflang="pl" href="https://traffic.isy.sh/" />
+    <link rel="alternate" hreflang="en" href="https://traffic.isy.sh/?lang=en" />
+    <link rel="alternate" hreflang="uk" href="https://traffic.isy.sh/?lang=uk" />
+    <link rel="alternate" hreflang="x-default" href="https://traffic.isy.sh/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Traffic Watch" />
+    <meta property="og:title" content="Traffic Watch · Ile dziś jedzie się do centrum Warszawy?" />
+    <meta property="og:description" content="Czas dojazdu z 12 wlotów do Warszawy na żywo, dzień kontra noc i najlepsza godzina wyjazdu do pracy: samochodem, komunikacją albo rowerem. Za darmo i open source." />
+    <meta property="og:url" content="https://traffic.isy.sh/" />
+    <meta property="og:image" content="https://traffic.isy.sh/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Mapa Warszawy z 12 trasami do centrum pokolorowanymi według korków i panelem ze średnim czasem dojazdu." />
+    <meta property="og:locale" content="pl_PL" />
+    <meta property="og:locale:alternate" content="en_GB" />
+    <meta property="og:locale:alternate" content="uk_UA" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Traffic Watch · Ile dziś jedzie się do centrum Warszawy?" />
+    <meta name="twitter:description" content="Czas dojazdu z 12 wlotów do Warszawy na żywo, dzień kontra noc i najlepsza godzina wyjazdu do pracy." />
+    <meta name="twitter:image" content="https://traffic.isy.sh/og.png" />
+
     <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
-    <title>Traffic Watch · Warszawa</title>
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Traffic Watch",
+        "url": "https://traffic.isy.sh/",
+        "description": "Czas dojazdu do centrum Warszawy z 12 wlotów do miasta, mierzony co 15 minut, oraz prognoza najlepszej godziny wyjazdu do pracy samochodem, komunikacją miejską lub rowerem.",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "Web",
+        "inLanguage": ["pl", "en", "uk"],
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "PLN" },
+        "image": "https://traffic.isy.sh/og.png",
+        "author": { "@type": "Person", "name": "Piotr Zientara", "url": "https://piotrzientara.pl/" },
+        "license": "https://opensource.org/licenses/MIT",
+        "codeRepository": "https://github.com/Tuhaj/traffic-watch-2026",
+        "areaServed": { "@type": "City", "name": "Warszawa" }
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <p>Traffic Watch pokazuje czas dojazdu do centrum Warszawy z 12 wlotów do miasta. Do działania potrzebny jest JavaScript. <a href="/faq/">Najczęstsze pytania</a></p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

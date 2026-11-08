@@ -164,5 +164,6 @@ export const pl = {
   "footer.about":
     "Pomiar co 15 min (w nocy co godzinę) z 12 wlotów do Ronda Dmowskiego. Czasy przejazdu i prognozy: Amazon Location Service (HERE). Trasy rowerowe: Valhalla, OpenStreetMap. Mapa: OpenFreeMap, © OpenStreetMap.",
   "footer.author": "Autor:",
+  "footer.faq": "FAQ i prywatność",
   "footer.code": "kod na GitHubie",
 } as const;

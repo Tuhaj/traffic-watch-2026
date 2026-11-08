@@ -7,7 +7,8 @@
     "build": "pnpm --filter @traffic-watch/web build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "deploy": "pnpm build && pnpm --filter @traffic-watch/infra run deploy"
+    "deploy": "pnpm build && pnpm --filter @traffic-watch/infra run deploy",
+    "stats": "pnpm --filter @traffic-watch/backend stats --"
   },
   "packageManager": "pnpm@10.32.1"
 }

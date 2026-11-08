@@ -140,11 +140,20 @@ export class TrafficWatchStack extends Stack {
       autoDeleteObjects: true,
     });
 
-    // SPA fallback only for page routes, so /api errors are never rewritten to index.html.
+    // Static pages (/faq/, /faq/en/) map to their index.html; any other extension-less path is the SPA.
+    // /api never reaches this function (separate behavior), so API errors are never rewritten.
     const spaRewrite = new CfFunction(this, "SpaRewrite", {
       code: FunctionCode.fromInline(`function handler(event) {
   var r = event.request;
-  if (r.uri.indexOf('.') === -1) r.uri = '/index.html';
+  var uri = r.uri;
+  if (uri === '/faq' || uri.indexOf('/faq/') === 0) {
+    if (uri.slice(-1) !== '/' && uri.indexOf('.') === -1) {
+      return { statusCode: 301, statusDescription: 'Moved', headers: { location: { value: uri + '/' } } };
+    }
+    if (uri.slice(-1) === '/') r.uri = uri + 'index.html';
+    return r;
+  }
+  if (uri.indexOf('.') === -1) r.uri = '/index.html';
   return r;
 }`),
     });
@@ -158,10 +167,11 @@ export class TrafficWatchStack extends Stack {
       enableAcceptEncodingBrotli: true,
     });
 
-    // Lambda URLs reject a forwarded Host header; pass only the query string and the viewer IP (for rate limiting).
+    // Lambda URLs reject a forwarded Host header. Pass the query string, the viewer IP (rate limits, daily unique
+    // visitor hash), country and user agent (bot filtering). None of these are part of the cache key.
     const apiOriginRequest = new OriginRequestPolicy(this, "ApiOriginRequest", {
       queryStringBehavior: OriginRequestQueryStringBehavior.all(),
-      headerBehavior: OriginRequestHeaderBehavior.allowList("cloudfront-viewer-address"),
+      headerBehavior: OriginRequestHeaderBehavior.allowList("cloudfront-viewer-address", "cloudfront-viewer-country", "user-agent"),
       cookieBehavior: OriginRequestCookieBehavior.none(),
     });
 
@@ -192,19 +202,22 @@ export class TrafficWatchStack extends Stack {
 
     const webDist = join(root, "web/dist");
     if (existsSync(webDist)) {
+      // Vite puts content-hashed files in assets/: cache them for a year.
       new BucketDeployment(this, "DeployAssets", {
-        sources: [Source.asset(webDist, { exclude: ["index.html"] })],
+        sources: [Source.asset(join(webDist, "assets"))],
         destinationBucket: site,
+        destinationKeyPrefix: "assets/",
         cacheControl: [CacheControl.fromString("public, max-age=31536000, immutable")],
         prune: false,
       });
-      new BucketDeployment(this, "DeployIndex", {
-        sources: [Source.asset(webDist, { exclude: ["*", "!index.html"] })],
+      // Everything else (index.html, FAQ pages, sitemap, robots, og.png, icons) is revalidated on every request.
+      new BucketDeployment(this, "DeployPages", {
+        sources: [Source.asset(webDist, { exclude: ["assets", "assets/**"] })],
         destinationBucket: site,
-        cacheControl: [CacheControl.fromString("no-cache")],
+        cacheControl: [CacheControl.fromString("public, max-age=0, must-revalidate")],
         prune: false,
         distribution,
-        distributionPaths: ["/index.html", "/"],
+        distributionPaths: ["/*"],
       });
     }
 

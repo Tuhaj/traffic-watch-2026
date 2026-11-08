@@ -8,12 +8,14 @@
     ],
     "jsx": "react-jsx",
     "types": [
-      "vite/client"
+      "vite/client",
+      "node"
     ]
   },
   "include": [
     "src",
     "test",
+    "static",
     "../shared"
   ]
 }

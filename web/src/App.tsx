@@ -19,6 +19,7 @@ import { type SeriesPoint, Timeline } from "./components/Timeline";
 import { fmtPercent, minutes, recentDays, slotToMinutes } from "./format";
 import { errorText, useI18n } from "./i18n";
 import { LangSwitch } from "./i18n/LangSwitch";
+import { track } from "./track";
 
 const CITY = "warszawa";
 const TZ = "Europe/Warsaw";
@@ -109,6 +110,12 @@ export function App() {
   const i18n = useI18n();
   const { t, fmt } = i18n;
   const dark = useDarkMode();
+
+  // One pageview per load, after the language has been applied to <html lang>.
+  useEffect(() => {
+    track("pageview", undefined, i18n.lang);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const days = useMemo(() => recentDays(TZ), []);
   const [tab, setTab] = useState<Tab>("city");
   const [mode, setMode] = useState<CityMode>("live");
@@ -179,6 +186,7 @@ export function App() {
           if (!res.ok) throw { body, status: res.status };
           setCommute(body as CommuteResponse);
           setSelectedDepart(null);
+          track("commute", travelMode);
         })
         .catch((e: { body?: unknown; status?: number }) => {
           if (ctrl.signal.aborted) return;
@@ -385,6 +393,7 @@ export function App() {
             className={tab === "commute" ? "active" : ""}
             onClick={() => {
               setTab("commute");
+              track("tab", "commute");
               setSelected(null);
               if (!points.home) setPicking("home");
               else if (!points.work) setPicking("work");
@@ -590,6 +599,7 @@ export function App() {
         <footer className="foot">
           {t("footer.about")}
           <br />
+          <a href={i18n.lang === "pl" ? "/faq/" : `/faq/${i18n.lang}/`}>{t("footer.faq")}</a> ·{" "}
           {t("footer.author")}{" "}
           <a href="https://piotrzientara.pl/" target="_blank" rel="noopener">
             Piotr Zientara

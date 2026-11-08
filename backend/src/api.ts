@@ -18,6 +18,7 @@ import type {
 } from "../../shared/types";
 import { getCommute, MODES } from "./commute";
 import { ApiError } from "./quota";
+import { recordHit } from "./stats";
 import { getPlace, suggestPlaces } from "./places";
 import { keys } from "./keys";
 
@@ -121,6 +122,16 @@ export async function handler(event: APIGatewayProxyEventV2): Promise<Result> {
     if (path === "/api/cities") {
       const list: CitySummary[] = CITIES.map(({ id, name, center, zoom }) => ({ id, name, center, zoom }));
       return json(200, list, 3600);
+    }
+
+    if (path === "/api/hit") {
+      await recordHit(
+        { event: q.e ?? "", path: q.p ?? "/", value: q.v, referrer: q.r, lang: q.l, device: q.d },
+        viewerIp(event),
+        event.headers?.["user-agent"],
+        event.headers?.["cloudfront-viewer-country"],
+      ).catch((e) => console.error("hit failed", e));
+      return { statusCode: 204, headers: { "cache-control": "no-store" }, body: "" };
     }
 
     if (path === "/api/places/suggest") {
