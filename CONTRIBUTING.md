@@ -9,4 +9,6 @@ Traffic Watch jest otwarty: korzystaj, kopiuj i proponuj zmiany.
 
 Lokalnie: `pnpm install`, potem `pnpm --filter @traffic-watch/web dev` (UI korzysta z API na traffic.isy.sh).
 
+Licencja: wysyłając zmiany, zgadzasz się, że będą dostępne na licencji GNU AGPL-3.0 (lub późniejszej), tak jak cały projekt.
+
 Zasady: bez ciasteczek i bez śledzenia użytkowników, teksty bez długich myślników, UI w trzech językach (PL, EN, UA).

@@ -107,7 +107,7 @@ footer{margin-top:28px;color:var(--muted);font-size:13px}
 <a class="cta" href="${appPath(lang)}">← ${esc(page.back)}</a>
 ${page.items.map((it) => `<section><h2>${esc(it.q)}</h2>${it.a.map((p) => `<p>${p}</p>`).join("")}</section>`).join("\n")}
 </main>
-<footer>${esc(page.updated)} · <a href="https://piotrzientara.pl/">Piotr Zientara</a> · <a href="https://github.com/Tuhaj/traffic-watch-2026">GitHub</a></footer>
+<footer>${page.dedication}<br />${esc(page.updated)} · <a href="https://piotrzientara.pl/">Piotr Zientara</a> · <a href="https://github.com/Tuhaj/traffic-watch-2026">GitHub</a></footer>
 </div>
 ${BEACON}
 </body>

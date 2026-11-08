@@ -130,9 +130,15 @@ Nowy wlot do miasta dodaje się w `shared/cities.ts`; collector podejmie go przy
 
 ## Licencja i współpraca
 
-MIT, zobacz `LICENSE`. Propozycje zmian mile widziane, zobacz `CONTRIBUTING.md`.
+Copyright (C) 2014-2026 Piotr Zientara. Kod jest na licencji [GNU AGPL-3.0](LICENSE) (lub późniejszej): możesz go używać, zmieniać i rozpowszechniać, ale jeśli udostępniasz go dalej albo uruchamiasz zmienioną wersję jako serwis w sieci, musisz udostępnić swój kod źródłowy na tej samej licencji. Pierwsza wersja z 2014 roku (osobne repozytoria) pozostaje na licencji MIT.
 
-Pierwsza wersja (2014) powstała przy wsparciu mentorów z Rebased: Bernarda Potockiego, Krzysztofa Modrasa i Tomasza Stachewicza.
+Propozycje zmian mile widziane, zobacz `CONTRIBUTING.md`.
+
+Pierwsza wersja (2014) powstała przy wsparciu mentorów z Rebased: Bernarda Potockiego, Krzysztofa Modrasa i Tomasza Stachewicza oraz Piotra Szotkowskiego.
+
+## Dedykacja
+
+Traffic Watch jest dedykowany pamięci [Piotra Szotkowskiego](https://chastell.net/), który pomagał przy pierwszej wersji, zawsze gotów pomóc drugiemu człowiekowi.
 
 ## Autor
 

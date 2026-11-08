@@ -118,6 +118,7 @@ button:focus-visible, svg:focus-visible { outline: 2px solid var(--accent); outl
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .small { font-size: 12px; line-height: 1.45; margin: 6px 0 0; }
+.foot .dedication { margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); color: var(--text); font-size: 12px; }
 .foot a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
 .foot a:hover { color: var(--accent); }
 

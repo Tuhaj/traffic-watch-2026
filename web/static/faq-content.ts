@@ -7,11 +7,15 @@ export interface FaqPage {
   intro: string;
   back: string;
   updated: string;
+  /** HTML; shown in the page footer. */
+  dedication: string;
   items: { q: string; a: string[] }[];
 }
 
 const REPO = '<a href="https://github.com/Tuhaj/traffic-watch-2026">github.com/Tuhaj/traffic-watch-2026</a>';
 const AUTHOR = '<a href="https://piotrzientara.pl/">Piotr Zientara</a>';
+const AGPL = '<a href="https://www.gnu.org/licenses/agpl-3.0.html">AGPL-3.0</a>';
+const CHASTELL = (name: string) => `<a href="https://chastell.net/">${name}</a>`;
 
 export const FAQ: Record<Lang, FaqPage> = {
   pl: {
@@ -22,6 +26,7 @@ export const FAQ: Record<Lang, FaqPage> = {
     intro: "Wszystko o tym, skąd biorą się dane, jak je liczymy i co dzieje się z Twoimi danymi.",
     back: "Wróć do mapy",
     updated: "Ostatnia aktualizacja: listopad 2026",
+    dedication: `Aplikacja dedykowana pamięci ${CHASTELL("Piotra Szotkowskiego")}.`,
     items: [
       {
         q: "Czym jest Traffic Watch?",
@@ -92,13 +97,15 @@ export const FAQ: Record<Lang, FaqPage> = {
       {
         q: "Czy mogę dodać miasto, wlot albo poprawkę?",
         a: [
-          `Tak, kod jest otwarty na licencji MIT: ${REPO}. Zgłoś pomysł albo błąd w Issues, a jeśli chcesz, otwórz pull request. Nowy wlot do miasta to jedna linijka w pliku shared/cities.ts.`,
+          `Tak, kod jest otwarty: ${REPO}. Zgłoś pomysł albo błąd w Issues, a jeśli chcesz, otwórz pull request. Nowy wlot do miasta to jedna linijka w pliku shared/cities.ts.`,
+          `Licencja to ${AGPL}. Możesz używać, zmieniać i rozpowszechniać kod, ale jeśli udostępniasz go dalej albo uruchamiasz zmienioną wersję jako serwis w internecie, musisz otworzyć swój kod na tej samej licencji.`,
         ],
       },
       {
         q: "Kto to zrobił?",
         a: [
           `${AUTHOR}. Pierwsza wersja powstała w 2014 roku jako projekt open source przy wsparciu mentorów z Rebased: Bernarda Potockiego, Krzysztofa Modrasa i Tomasza Stachewicza. W 2026 roku aplikacja została przepisana od nowa.`,
+          `Aplikacja jest dedykowana pamięci ${CHASTELL("Piotra Szotkowskiego")}, który pomagał przy pierwszej wersji, zawsze gotów pomóc drugiemu człowiekowi.`,
         ],
       },
     ],
@@ -111,6 +118,7 @@ export const FAQ: Record<Lang, FaqPage> = {
     intro: "Where the data comes from, how we calculate it and what happens to your data.",
     back: "Back to the map",
     updated: "Last updated: November 2026",
+    dedication: `This app is dedicated to the memory of ${CHASTELL("Piotr Szotkowski")}.`,
     items: [
       {
         q: "What is Traffic Watch?",
@@ -181,13 +189,15 @@ export const FAQ: Record<Lang, FaqPage> = {
       {
         q: "Can I add a city, an entry point or a fix?",
         a: [
-          `Yes, the code is open source under the MIT licence: ${REPO}. Report an idea or a bug in Issues, or open a pull request. A new entry point is a single line in shared/cities.ts.`,
+          `Yes, the code is open source: ${REPO}. Report an idea or a bug in Issues, or open a pull request. A new entry point is a single line in shared/cities.ts.`,
+          `The licence is ${AGPL}. You may use, modify and share the code, but if you distribute it or run a modified version as an online service, you must release your code under the same licence.`,
         ],
       },
       {
         q: "Who made this?",
         a: [
           `${AUTHOR}. The first version was built in 2014 as an open source project with the support of mentors at Rebased: Bernard Potocki, Krzysztof Modras and Tomasz Stachewicz. In 2026 the app was rewritten from scratch.`,
+          `The app is dedicated to the memory of ${CHASTELL("Piotr Szotkowski")}, who helped with the first version and was always ready to help others.`,
         ],
       },
     ],
@@ -200,6 +210,7 @@ export const FAQ: Record<Lang, FaqPage> = {
     intro: "Звідки беруться дані, як ми їх рахуємо і що відбувається з вашими даними.",
     back: "Повернутися до мапи",
     updated: "Останнє оновлення: листопад 2026",
+    dedication: `Застосунок присвячено пам'яті ${CHASTELL("Пьотра Шотковського")}.`,
     items: [
       {
         q: "Що таке Traffic Watch?",
@@ -270,13 +281,15 @@ export const FAQ: Record<Lang, FaqPage> = {
       {
         q: "Чи можу я додати місто, в'їзд або виправлення?",
         a: [
-          `Так, код відкритий за ліцензією MIT: ${REPO}. Повідомте ідею чи помилку в Issues або відкрийте pull request. Новий в'їзд до міста це один рядок у файлі shared/cities.ts.`,
+          `Так, код відкритий: ${REPO}. Повідомте ідею чи помилку в Issues або відкрийте pull request. Новий в'їзд до міста це один рядок у файлі shared/cities.ts.`,
+          `Ліцензія: ${AGPL}. Ви можете використовувати, змінювати й поширювати код, але якщо поширюєте його далі або запускаєте змінену версію як онлайн-сервіс, ви маєте відкрити свій код за тією самою ліцензією.`,
         ],
       },
       {
         q: "Хто це зробив?",
         a: [
           `${AUTHOR}. Перша версія з'явилася у 2014 році як проєкт з відкритим кодом за підтримки менторів з Rebased: Бернарда Потоцького, Кшиштофа Модраса і Томаша Стахевича. У 2026 році застосунок переписано з нуля.`,
+          `Застосунок присвячено пам'яті ${CHASTELL("Пьотра Шотковського (Piotr Szotkowski)")}, який допомагав з першою версією і завжди був готовий допомогти іншим.`,
         ],
       },
     ],

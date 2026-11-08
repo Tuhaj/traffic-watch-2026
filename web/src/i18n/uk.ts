@@ -161,6 +161,8 @@ export const uk: Dictionary = {
 
   "footer.about":
     "Вимірювання кожні 15 хв (уночі щогодини) з 12 в'їздів до Rondo Dmowskiego. Час у дорозі та прогнози: Amazon Location Service (HERE). Велосипедні маршрути: Valhalla, OpenStreetMap. Мапа: OpenFreeMap, © OpenStreetMap.",
+  "footer.dedication": "Застосунок присвячено пам'яті {name}.",
+  "footer.dedicationName": "Пьотра Шотковського",
   "footer.author": "Автор:",
   "footer.faq": "Питання та приватність",
   "footer.code": "код на GitHub",

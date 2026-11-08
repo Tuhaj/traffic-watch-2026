@@ -10,5 +10,6 @@
     "deploy": "pnpm build && pnpm --filter @traffic-watch/infra run deploy",
     "stats": "pnpm --filter @traffic-watch/backend stats --"
   },
-  "packageManager": "pnpm@10.32.1"
+  "packageManager": "pnpm@10.32.1",
+  "license": "AGPL-3.0-or-later"
 }

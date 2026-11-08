@@ -597,6 +597,20 @@ export function App() {
         )}
 
         <footer className="foot">
+          <p className="dedication">
+            {(() => {
+              const [before, after] = t("footer.dedication", { name: "\u0000" }).split("\u0000");
+              return (
+                <>
+                  {before}
+                  <a href="https://chastell.net/" target="_blank" rel="noopener">
+                    {t("footer.dedicationName")}
+                  </a>
+                  {after}
+                </>
+              );
+            })()}
+          </p>
           {t("footer.about")}
           <br />
           <a href={i18n.lang === "pl" ? "/faq/" : `/faq/${i18n.lang}/`}>{t("footer.faq")}</a> ·{" "}

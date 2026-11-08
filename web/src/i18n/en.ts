@@ -161,6 +161,8 @@ export const en: Dictionary = {
 
   "footer.about":
     "Measured every 15 min (hourly at night) from 12 city entry points to Rondo Dmowskiego. Travel times and forecasts: Amazon Location Service (HERE). Bike routes: Valhalla, OpenStreetMap. Map: OpenFreeMap, © OpenStreetMap.",
+  "footer.dedication": "This app is dedicated to the memory of {name}.",
+  "footer.dedicationName": "Piotr Szotkowski",
   "footer.author": "Author:",
   "footer.faq": "FAQ and privacy",
   "footer.code": "code on GitHub",
